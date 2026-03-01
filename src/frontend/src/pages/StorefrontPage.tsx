@@ -24,6 +24,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { OrderItem, Product } from "../backend.d.ts";
+import { useCurrency } from "../hooks/useCurrency";
 import {
   useActiveProductsByStore,
   useAiAssist,
@@ -40,10 +41,6 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   displayedContent?: string;
-}
-
-function formatPrice(cents: bigint) {
-  return `$${(Number(cents) / 100).toFixed(2)}`;
 }
 
 // Typewriter animation hook
@@ -69,9 +66,11 @@ function useTypewriter(text: string, speed = 18) {
 function ProductCard({
   product,
   onAdd,
+  formatPrice,
 }: {
   product: Product;
   onAdd: (p: Product) => void;
+  formatPrice: (cents: bigint | number) => string;
 }) {
   return (
     <motion.div
@@ -119,6 +118,7 @@ export default function StorefrontPage() {
     useActiveProductsByStore(store?.id);
   const placeOrder = usePlaceOrder();
   const aiAssist = useAiAssist();
+  const { currency, setCurrency, formatPrice } = useCurrency();
 
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -217,9 +217,8 @@ export default function StorefrontPage() {
     setMessages((prev) => [...prev, userMessage]);
 
     const storeContext = `Store: ${store.name}. ${store.description}. Products: ${
-      products
-        ?.map((p) => `${p.name} ($${(Number(p.price) / 100).toFixed(2)})`)
-        .join(", ") ?? "loading..."
+      products?.map((p) => `${p.name} (${formatPrice(p.price)})`).join(", ") ??
+      "loading..."
     }`;
 
     try {
@@ -294,20 +293,48 @@ export default function StorefrontPage() {
             <Separator orientation="vertical" className="h-4" />
             <span className="font-display font-bold text-sm">{store.name}</span>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => setCartOpen(true)}
-            className="relative"
-            size="sm"
-          >
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            Cart
-            {cart.length > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full ai-gradient text-white text-[10px] flex items-center justify-center font-bold">
-                {cart.reduce((s, i) => s + i.quantity, 0)}
-              </span>
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Currency Switcher */}
+            <div className="flex items-center rounded-lg border border-border overflow-hidden h-8">
+              <button
+                type="button"
+                onClick={() => setCurrency("USD")}
+                className={`px-2.5 h-full text-xs font-medium transition-colors ${
+                  currency === "USD"
+                    ? "ai-gradient text-white"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                $
+              </button>
+              <div className="w-px h-4 bg-border" />
+              <button
+                type="button"
+                onClick={() => setCurrency("GBP")}
+                className={`px-2.5 h-full text-xs font-medium transition-colors ${
+                  currency === "GBP"
+                    ? "ai-gradient text-white"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                £
+              </button>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setCartOpen(true)}
+              className="relative"
+              size="sm"
+            >
+              <ShoppingCart className="h-4 w-4 mr-2" />
+              Cart
+              {cart.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full ai-gradient text-white text-[10px] flex items-center justify-center font-bold">
+                  {cart.reduce((s, i) => s + i.quantity, 0)}
+                </span>
+              )}
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -369,6 +396,7 @@ export default function StorefrontPage() {
                 key={product.id.toString()}
                 product={product}
                 onAdd={addToCart}
+                formatPrice={formatPrice}
               />
             ))}
           </div>
@@ -490,7 +518,7 @@ export default function StorefrontPage() {
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Subtotal</span>
                         <span className="font-bold font-display text-lg">
-                          ${(cartTotal / 100).toFixed(2)}
+                          {formatPrice(cartTotal)}
                         </span>
                       </div>
                       <Button
@@ -518,18 +546,16 @@ export default function StorefrontPage() {
                               {item.product.name} × {item.quantity}
                             </span>
                             <span className="font-medium ml-2 shrink-0">
-                              $
-                              {(
-                                (Number(item.product.price) * item.quantity) /
-                                100
-                              ).toFixed(2)}
+                              {formatPrice(
+                                Number(item.product.price) * item.quantity,
+                              )}
                             </span>
                           </div>
                         ))}
                         <Separator className="my-2" />
                         <div className="flex justify-between font-bold">
                           <span>Total</span>
-                          <span>${(cartTotal / 100).toFixed(2)}</span>
+                          <span>{formatPrice(cartTotal)}</span>
                         </div>
                       </div>
 
@@ -584,7 +610,7 @@ export default function StorefrontPage() {
                           Placing Order...
                         </>
                       ) : (
-                        `Place Order — $${(cartTotal / 100).toFixed(2)}`
+                        `Place Order — ${formatPrice(cartTotal)}`
                       )}
                     </Button>
                     <Button

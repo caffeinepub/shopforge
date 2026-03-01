@@ -67,6 +67,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { OrderStatus } from "../backend";
 import type { Order, Product } from "../backend.d.ts";
+import { useCurrency } from "../hooks/useCurrency";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAddProduct,
@@ -89,9 +90,7 @@ type DashTab =
   | "ai"
   | "settings";
 
-function formatPrice(cents: bigint) {
-  return `$${(Number(cents) / 100).toFixed(2)}`;
-}
+// formatPrice is provided by useCurrency hook inside the component
 
 function formatDate(time: bigint) {
   return new Date(Number(time) / 1_000_000).toLocaleDateString();
@@ -173,6 +172,7 @@ const CATEGORIES = [
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { clear, identity } = useInternetIdentity();
+  const { currency, setCurrency, formatPrice } = useCurrency();
   const [activeTab, setActiveTab] = useState<DashTab>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -378,12 +378,9 @@ export default function DashboardPage() {
 
     const storeCtx = `You are an AI assistant for "${store.name}", a store that sells: ${store.description}. Products: ${
       products
-        ?.map(
-          (p) =>
-            `${p.name} at $${(Number(p.price) / 100).toFixed(2)} (${p.category})`,
-        )
+        ?.map((p) => `${p.name} at ${formatPrice(p.price)} (${p.category})`)
         .join(", ") || "not loaded yet"
-    }. Analytics: ${analytics ? `${analytics.totalOrders} total orders, $${(Number(analytics.totalRevenue) / 100).toFixed(2)} revenue` : "loading"}`;
+    }. Analytics: ${analytics ? `${analytics.totalOrders} total orders, ${formatPrice(analytics.totalRevenue)} revenue` : "loading"}`;
 
     try {
       const response = await aiAssist.mutateAsync({
@@ -573,6 +570,32 @@ export default function DashboardPage() {
             {activeTab === "ai" ? "AI Assistant" : activeTab}
           </div>
           <div className="ml-auto flex items-center gap-2">
+            {/* Currency Switcher */}
+            <div className="flex items-center rounded-lg border border-border overflow-hidden h-8">
+              <button
+                type="button"
+                onClick={() => setCurrency("USD")}
+                className={`px-2.5 h-full text-xs font-medium transition-colors ${
+                  currency === "USD"
+                    ? "ai-gradient text-white"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                $
+              </button>
+              <div className="w-px h-4 bg-border" />
+              <button
+                type="button"
+                onClick={() => setCurrency("GBP")}
+                className={`px-2.5 h-full text-xs font-medium transition-colors ${
+                  currency === "GBP"
+                    ? "ai-gradient text-white"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                £
+              </button>
+            </div>
             <Link to="/store/$slug" params={{ slug: store.slug }}>
               <Button
                 variant="outline"
@@ -625,8 +648,8 @@ export default function DashboardPage() {
                     {
                       label: "Total Revenue",
                       value: analytics
-                        ? `$${(Number(analytics.totalRevenue) / 100).toFixed(2)}`
-                        : "$0.00",
+                        ? formatPrice(analytics.totalRevenue)
+                        : formatPrice(0n),
                       icon: DollarSign,
                       color: "from-emerald-500/20 to-teal-500/20",
                     },
@@ -1054,8 +1077,8 @@ export default function DashboardPage() {
                         </div>
                         <div className="font-display text-4xl font-black">
                           {analytics
-                            ? `$${(Number(analytics.totalRevenue) / 100).toFixed(2)}`
-                            : "$0.00"}
+                            ? formatPrice(analytics.totalRevenue)
+                            : formatPrice(0n)}
                         </div>
                       </div>
                     </div>
