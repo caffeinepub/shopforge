@@ -1,45 +1,44 @@
-# ShopForge - Multi-Tenant E-Commerce Platform
+# ShopForge
 
 ## Current State
-New project. No existing code.
+
+ShopForge is a full-stack Shopify-style platform where authenticated users can create their own stores with unique URLs, manage products, view orders and analytics, and use an AI assistant. The app has:
+
+- `LandingPage` at `/` -- hero, features, featured stores, CTA
+- `LoginPage` at `/login` -- Internet Identity authentication
+- `CreateStorePage` at `/create-store` -- 3-step store creation wizard
+- `DashboardPage` at `/dashboard` -- store management with sidebar tabs (overview, products, orders, analytics, AI, settings)
+- `StorefrontPage` at `/store/$slug` -- public-facing storefront with product grid and cart
+- `StoresPage` at `/stores` -- directory of all stores
+- `NoStorePage` at `/dashboard/no-store`
+
+The `useActor` hook initializes an anonymous actor on page load and an authenticated one after login. Queries (via React Query) wait for `actor` to be ready before fetching. The `RouterProvider` is rendered twice -- once inside the root route component, and once in the `App` export -- which causes a React Router tree mismatch that breaks routing and loading.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Multi-tenant store creation: each user can create and manage their own store with a unique store slug/URL path
-- Store management dashboard: add/edit/delete products, manage orders, configure store settings
-- Product catalog: products with name, description, price, images (blob), category, stock count
-- Storefront pages: each store has a public-facing page at `/store/:storeSlug` showing its products
-- Shopping cart: customers can add products to cart and place orders
-- Order management: store owners can view and update order status (pending, fulfilled, cancelled)
-- AI Assistant: integrated chat assistant on both the store admin dashboard and the storefront, to help store owners write product descriptions, answer customer questions, suggest pricing, and generate store content
-- User authentication: login/signup with Internet Identity, role-based (platform admin, store owner, customer)
-- Store analytics: basic stats (total orders, revenue, top products)
+- **`WelcomePage`** at `/` (new, replaces LandingPage as the root route): A landing page with:
+  - Header with logo and nav (About, Pricing, Stores, Log In)
+  - Hero section with tagline, brief description, and two CTAs: "Get Started" (→ /membership) and "Browse Stores" (→ /stores)
+  - "About Us" section explaining ShopForge, its mission, and how it works (3-step how-it-works)
+  - Features section (reuse existing FEATURES data)
+  - Membership/Pricing section with three tiers (Starter $9/mo, Pro $29/mo, Enterprise $99/mo) each with a "Choose Plan" button that routes to `/membership`
+  - Footer
+- **`MembershipPage`** at `/membership`: A page where users can view and select a membership plan before accessing the platform. Shows plan cards (Starter, Pro, Enterprise), a "Continue" button that stores chosen plan in localStorage and redirects to `/login`, and a notice that membership is required to create a store.
+- Route for `/membership` in `App.tsx`
 
 ### Modify
-- N/A (new project)
+- **`App.tsx`**: Fix the double `RouterProvider` bug -- the root route component renders `<RouterProvider router={router} />` creating infinite recursion; it should render `<Outlet />` from `@tanstack/react-router` instead. Also wire up the new `/membership` route.
+- **`LandingPage.tsx`**: Rename/repurpose as `WelcomePage.tsx` -- replace root `/` route with the new welcome+about+membership page. The existing LandingPage can be retired or kept as a component.
+- **`useAllStores`** hook: Currently only enabled when `actor && !isFetching`. The public stores listing should work for anonymous (non-logged-in) users -- this is already the case since `listAllStores` is a public query, but the actor initialization needs to complete first. No backend changes needed.
 
 ### Remove
-- N/A (new project)
+- Nothing removed; existing LandingPage content is absorbed into the new WelcomePage.
 
 ## Implementation Plan
-1. Backend (Motoko):
-   - User registry: store principal -> profile (name, email, role)
-   - Store registry: storeId, ownerId, name, slug, description, banner image, isActive
-   - Product CRUD: productId, storeId, name, description, price, stock, category, imageId
-   - Order management: orderId, storeId, buyerPrincipal, items[], status, total, createdAt
-   - AI assistant endpoint: accepts a prompt + context (store info, products) and returns AI-generated suggestions
-   - Store analytics: aggregate orders per store for revenue and order counts
 
-2. Frontend:
-   - Landing page: platform homepage with hero, feature highlights, "Create your store" CTA
-   - Auth flow: Internet Identity login/signup
-   - Store creation wizard: pick store name, slug, description
-   - Admin dashboard: sidebar nav with Products, Orders, Analytics, AI Assistant, Settings
-   - Product manager: list, add, edit, delete products with image upload
-   - Order manager: list orders with status updates
-   - Analytics panel: revenue chart, order count, top products
-   - AI Assistant panel: chat interface for store owners (product description generator, SEO suggestions, pricing advice)
-   - Public storefront: `/store/:slug` with product grid, store header, cart sidebar
-   - Cart + checkout: add to cart, enter name/email, place order
-   - AI chat widget: floating chat bubble on storefronts for customer Q&A
+1. Fix `App.tsx`: Replace the root route's `component` from rendering `<RouterProvider router={router}>` to `<Outlet />` (imported from `@tanstack/react-router`). This fixes the recursive RouterProvider bug that causes nothing to load.
+2. Create `src/frontend/src/pages/MembershipPage.tsx`: Three plan cards (Starter/Pro/Enterprise with features list), plan selection state, "Continue to Login" button that saves plan to localStorage and navigates to `/login`.
+3. Create `src/frontend/src/pages/WelcomePage.tsx`: Full marketing landing page with About Us section, How It Works steps, Features grid, Pricing/Membership section, and footer. Root `/` route points here.
+4. Update `App.tsx` routes: Change `indexRoute` component to `WelcomePage`, add `membershipRoute` at `/membership` pointing to `MembershipPage`.
+5. Validate (typecheck + build).

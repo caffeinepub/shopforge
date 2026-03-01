@@ -1,22 +1,23 @@
 import { Toaster } from "@/components/ui/sonner";
-import { RouterProvider, createRouter } from "@tanstack/react-router";
+import { Outlet, RouterProvider, createRouter } from "@tanstack/react-router";
 import { createRootRoute, createRoute } from "@tanstack/react-router";
 
 import CreateStorePage from "./pages/CreateStorePage";
 import DashboardPage from "./pages/DashboardPage";
-// Pages
-import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
+import MembershipPage from "./pages/MembershipPage";
 import NoStorePage from "./pages/NoStorePage";
 import StorefrontPage from "./pages/StorefrontPage";
 import StoresPage from "./pages/StoresPage";
+// Pages
+import WelcomePage from "./pages/WelcomePage";
 
 // Root route
 const rootRoute = createRootRoute({
   component: () => (
     <>
       <Toaster richColors position="top-right" />
-      <RouterProvider router={router} />
+      <Outlet />
     </>
   ),
 });
@@ -24,7 +25,13 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: LandingPage,
+  component: WelcomePage,
+});
+
+const membershipRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/membership",
+  component: MembershipPage,
 });
 
 const storesRoute = createRoute({
@@ -65,6 +72,7 @@ const noStoreRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  membershipRoute,
   storesRoute,
   storeRoute,
   loginRoute,
@@ -82,10 +90,5 @@ declare module "@tanstack/react-router" {
 }
 
 export default function App() {
-  return (
-    <>
-      <RouterProvider router={router} />
-      <Toaster richColors position="top-right" />
-    </>
-  );
+  return <RouterProvider router={router} />;
 }
