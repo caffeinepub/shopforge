@@ -45,6 +45,7 @@ import {
   AlertTriangle,
   BarChart3,
   Bot,
+  CalendarClock,
   Check,
   DollarSign,
   Edit2,
@@ -56,6 +57,7 @@ import {
   Menu,
   Package,
   Plus,
+  RefreshCw,
   Send,
   Settings,
   ShoppingBag,
@@ -84,6 +86,15 @@ import {
   useUpdateProduct,
   useUpdateStore,
 } from "../hooks/useQueries";
+import {
+  cancelSubscription,
+  formatExpiryDate,
+  getDaysUntilExpiry,
+  getSubscription,
+  isSubscriptionActive,
+  isSubscriptionExpired,
+  isSubscriptionExpiringSoon,
+} from "../utils/subscription";
 
 type DashTab =
   | "overview"
@@ -172,28 +183,7 @@ const CATEGORIES = [
   "Other",
 ];
 
-interface Subscription {
-  id: number;
-  name: string;
-  paypalUsername: string;
-  plan: string;
-  status: "pending" | "active" | "cancelled";
-  joinedAt: string;
-}
-
-function getSubscriptionStatus(): "pending" | "active" | "cancelled" | null {
-  try {
-    const subs = JSON.parse(
-      localStorage.getItem("frostify_subscriptions") ?? "[]",
-    ) as Subscription[];
-    if (subs.length === 0) return null;
-    // Return the most recent subscription status
-    const latest = subs[subs.length - 1];
-    return latest?.status ?? null;
-  } catch {
-    return null;
-  }
-}
+// Subscription helpers imported from utils/subscription
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -201,7 +191,9 @@ export default function DashboardPage() {
   const { currency, setCurrency, formatPrice } = useCurrency();
   const [activeTab, setActiveTab] = useState<DashTab>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const subscriptionStatus = getSubscriptionStatus();
+  const [reminderDismissed, setReminderDismissed] = useState(false);
+  const [expirySoonDismissed, setExpirySoonDismissed] = useState(false);
+  const subscription = getSubscription();
 
   const { data: store, isLoading: storeLoading } = useMyStore();
 
@@ -218,6 +210,21 @@ export default function DashboardPage() {
       navigate({ to: "/create-store" });
     }
   }, [store, storeLoading, identity, navigate]);
+
+  // Hard subscription gate
+  useEffect(() => {
+    if (!identity) return;
+    if (
+      !subscription ||
+      subscription.status === "cancelled" ||
+      isSubscriptionExpired(subscription)
+    ) {
+      const params = isSubscriptionExpired(subscription) ? "?expired=1" : "";
+      navigate({ to: `/membership${params}` as "/" });
+      return;
+    }
+    // pending is handled inline — no redirect
+  }, [identity, navigate, subscription]);
 
   const { data: products, isLoading: productsLoading } = useProductsByStore(
     store?.id,
@@ -434,6 +441,48 @@ export default function DashboardPage() {
     }
   }
 
+  // Pending payment — full blocking screen
+  if (subscription?.status === "pending") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 hero-mesh">
+        <div className="absolute inset-0 opacity-20 pointer-events-none">
+          <img
+            src="/assets/generated/hero-bg.dim_1600x900.jpg"
+            alt=""
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/60 to-background/90" />
+        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="relative z-10 w-full max-w-md"
+        >
+          <div className="bg-card border border-border rounded-3xl p-8 shadow-xl text-center">
+            <div className="w-16 h-16 rounded-2xl ai-gradient flex items-center justify-center mx-auto mb-5 shadow-glow animate-pulse-glow">
+              <CalendarClock className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="font-display text-2xl font-black tracking-tight mb-3">
+              Payment Under Review
+            </h1>
+            <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+              Your payment is being verified by our team. You'll get access
+              within 24 hours. Contact support if you have questions.
+            </p>
+            <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 mb-6 text-sm text-primary/80">
+              <span className="font-semibold">Plan:</span> {subscription.plan}
+            </div>
+            <Button onClick={clear} variant="outline" className="w-full">
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (storeLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -636,25 +685,56 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Subscription Status Banner */}
-        {subscriptionStatus === "cancelled" && (
-          <Alert className="rounded-none border-x-0 border-t-0 bg-destructive/10 border-destructive/30">
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-            <AlertDescription className="text-destructive font-medium">
-              ⚠️ Your subscription has been cancelled. Please contact support or
-              make a new payment to restore access.
+        {/* Subscription Status Banners */}
+        {/* Expiring soon — amber warning */}
+        {isSubscriptionExpiringSoon(subscription) && !expirySoonDismissed && (
+          <Alert className="rounded-none border-x-0 border-t-0 bg-amber-500/10 border-amber-500/30 flex items-center">
+            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <AlertDescription className="text-amber-700 dark:text-amber-400 font-medium flex-1 ml-2">
+              Your membership expires in {getDaysUntilExpiry(subscription)} day
+              {getDaysUntilExpiry(subscription) !== 1 ? "s" : ""}.{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("settings");
+                }}
+                className="underline hover:no-underline font-semibold"
+              >
+                Renew now
+              </button>{" "}
+              to keep access.
             </AlertDescription>
+            <button
+              type="button"
+              onClick={() => setExpirySoonDismissed(true)}
+              className="ml-2 text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 shrink-0"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </Alert>
         )}
-        {subscriptionStatus === "pending" && (
-          <Alert className="rounded-none border-x-0 border-t-0 bg-primary/10 border-primary/30">
-            <Info className="h-4 w-4 text-primary" />
-            <AlertDescription className="text-primary font-medium">
-              ℹ️ Your payment is under review. Access will be activated once
-              payment is confirmed.
-            </AlertDescription>
-          </Alert>
-        )}
+        {/* Active but not expiring soon — info reminder */}
+        {isSubscriptionActive(subscription) &&
+          !isSubscriptionExpiringSoon(subscription) &&
+          !reminderDismissed && (
+            <Alert className="rounded-none border-x-0 border-t-0 bg-primary/5 border-primary/20 flex items-center">
+              <Info className="h-4 w-4 text-primary shrink-0" />
+              <AlertDescription className="text-primary/80 text-sm flex-1 ml-2">
+                <span className="font-medium">Reminder:</span> Your Frostify
+                membership does not renew automatically. You must pay manually
+                each month to keep access.
+              </AlertDescription>
+              <button
+                type="button"
+                onClick={() => setReminderDismissed(true)}
+                className="ml-2 text-primary/60 hover:text-primary shrink-0"
+                aria-label="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </Alert>
+          )}
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
@@ -1354,6 +1434,125 @@ export default function DashboardPage() {
                 <h2 className="font-display text-xl font-black">
                   Store Settings
                 </h2>
+
+                {/* ── Account & Subscription Card ── */}
+                <div
+                  className={`bg-card border rounded-2xl p-6 space-y-4 ${isSubscriptionExpiringSoon(subscription) ? "border-amber-500/40" : "border-border"}`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <CalendarClock
+                      className={`w-4 h-4 ${isSubscriptionExpiringSoon(subscription) ? "text-amber-500" : "text-primary"}`}
+                    />
+                    <h3 className="font-display font-bold text-sm">
+                      Account &amp; Subscription
+                    </h3>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    <div className="bg-secondary/50 rounded-xl p-3">
+                      <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                        Plan
+                      </div>
+                      <div className="font-semibold">
+                        {subscription?.plan ?? "—"}
+                      </div>
+                    </div>
+                    <div className="bg-secondary/50 rounded-xl p-3">
+                      <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                        Status
+                      </div>
+                      <div>
+                        {subscription?.status === "active" && (
+                          <Badge className="bg-success/20 text-success border-success/30 text-xs">
+                            Active
+                          </Badge>
+                        )}
+                        {/* Note: pending only appears in settings if navigated directly; narrowed by TS after early return */}
+                        {(subscription?.status as string) === "pending" && (
+                          <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
+                            Pending
+                          </Badge>
+                        )}
+                        {(subscription?.status === "cancelled" ||
+                          !subscription?.status) && (
+                          <Badge variant="destructive" className="text-xs">
+                            Cancelled
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="bg-secondary/50 rounded-xl p-3">
+                      <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                        Expires
+                      </div>
+                      <div className="font-semibold text-xs">
+                        {formatExpiryDate(subscription)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Renewal prompt — when expiring soon or already expired */}
+                  {(isSubscriptionExpiringSoon(subscription) ||
+                    isSubscriptionExpired(subscription)) && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 space-y-3"
+                    >
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-amber-700 dark:text-amber-400 font-semibold text-sm">
+                            {isSubscriptionExpired(subscription)
+                              ? "Your subscription has expired"
+                              : `Your subscription expires in ${getDaysUntilExpiry(subscription)} day${getDaysUntilExpiry(subscription) !== 1 ? "s" : ""}`}
+                          </p>
+                          <p className="text-amber-700/70 dark:text-amber-400/70 text-xs mt-0.5">
+                            Renew now to keep access to your store and all
+                            features.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 flex-col sm:flex-row">
+                        <Button
+                          onClick={() => navigate({ to: "/membership" })}
+                          className="flex-1 ai-gradient text-white border-0 shadow-glow-sm text-sm"
+                          size="sm"
+                        >
+                          <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                          Purchase Another Month
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            cancelSubscription();
+                            toast.success(
+                              "Your subscription has been cancelled.",
+                            );
+                            clear();
+                            navigate({ to: "/" });
+                          }}
+                          variant="outline"
+                          className="flex-1 text-destructive border-destructive/40 hover:bg-destructive/10 text-sm"
+                          size="sm"
+                        >
+                          <X className="mr-2 h-3.5 w-3.5" />
+                          Decline &amp; Cancel
+                        </Button>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Manual renewal reminder for active non-expiring subscriptions */}
+                  {isSubscriptionActive(subscription) &&
+                    !isSubscriptionExpiringSoon(subscription) && (
+                      <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+                        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-primary" />
+                        Your membership does not renew automatically. Remember
+                        to pay manually each month.
+                      </p>
+                    )}
+                </div>
 
                 <div className="bg-card border border-border rounded-2xl p-6 space-y-5">
                   <div className="space-y-1.5">

@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { useEffect } from "react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useMyStore } from "../hooks/useQueries";
+import { getSubscription, isSubscriptionActive } from "../utils/subscription";
 
 export default function LoginPage() {
   const { login, isLoggingIn, isLoginSuccess, identity } =
@@ -14,6 +15,11 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isLoginSuccess && identity && !storeLoading) {
+      const sub = getSubscription();
+      if (!isSubscriptionActive(sub)) {
+        navigate({ to: "/membership" });
+        return;
+      }
       if (myStore) {
         navigate({ to: "/dashboard" });
       } else {
@@ -25,6 +31,11 @@ export default function LoginPage() {
   // Already logged in
   useEffect(() => {
     if (identity && !storeLoading) {
+      const sub = getSubscription();
+      if (!isSubscriptionActive(sub)) {
+        navigate({ to: "/membership" });
+        return;
+      }
       if (myStore) {
         navigate({ to: "/dashboard" });
       } else {

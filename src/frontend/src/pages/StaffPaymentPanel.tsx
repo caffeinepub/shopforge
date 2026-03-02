@@ -34,6 +34,7 @@ import { Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   CreditCard,
+  DollarSign,
   Edit2,
   Lock,
   Package,
@@ -120,6 +121,36 @@ function loadSubscriptions(): Subscription[] {
 
 function saveSubscriptions(subs: Subscription[]) {
   localStorage.setItem("frostify_subscriptions", JSON.stringify(subs));
+}
+
+// ── Plan Prices ───────────────────────────────────────────────
+const DEFAULT_PLAN_PRICES = { starter: 9, pro: 29, enterprise: 99 };
+
+function loadPlanPrices(): {
+  starter: number;
+  pro: number;
+  enterprise: number;
+} {
+  try {
+    const stored = localStorage.getItem("frostify_plan_prices");
+    if (stored)
+      return JSON.parse(stored) as {
+        starter: number;
+        pro: number;
+        enterprise: number;
+      };
+  } catch {
+    // ignore
+  }
+  return DEFAULT_PLAN_PRICES;
+}
+
+function savePlanPrices(prices: {
+  starter: number;
+  pro: number;
+  enterprise: number;
+}) {
+  localStorage.setItem("frostify_plan_prices", JSON.stringify(prices));
 }
 
 function StatusBadge({ status }: { status: Subscription["status"] }) {
@@ -275,6 +306,13 @@ function StaffPanel() {
   const [cancelSubId, setCancelSubId] = useState<number | null>(null);
   const [reactivateSubId, setReactivateSubId] = useState<number | null>(null);
 
+  // Plan pricing
+  const [planPrices, setPlanPrices] = useState(loadPlanPrices);
+  const [editingPlanId, setEditingPlanId] = useState<
+    "starter" | "pro" | "enterprise" | null
+  >(null);
+  const [editingPriceValue, setEditingPriceValue] = useState<string>("");
+
   // ── Payment Methods handlers ──
   function openAddMethod() {
     setEditingMethod(null);
@@ -422,7 +460,7 @@ function StaffPanel() {
           </div>
 
           <Tabs defaultValue="payments" className="space-y-6">
-            <TabsList className="grid w-full max-w-xs grid-cols-2">
+            <TabsList className="grid w-full max-w-sm grid-cols-3">
               <TabsTrigger
                 value="payments"
                 className="flex items-center gap-1.5"
@@ -433,6 +471,13 @@ function StaffPanel() {
               <TabsTrigger value="subs" className="flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5" />
                 Subscriptions
+              </TabsTrigger>
+              <TabsTrigger
+                value="pricing"
+                className="flex items-center gap-1.5"
+              >
+                <DollarSign className="w-3.5 h-3.5" />
+                Pricing
               </TabsTrigger>
             </TabsList>
 
@@ -551,6 +596,137 @@ function StaffPanel() {
                   </Table>
                 </div>
               )}
+            </TabsContent>
+
+            {/* ── Tab 3: Pricing ── */}
+            <TabsContent value="pricing" className="space-y-4">
+              <div>
+                <h2 className="font-display text-xl font-black">
+                  Membership Pricing
+                </h2>
+                <p className="text-muted-foreground text-sm">
+                  These prices are shown to users on the membership page.
+                </p>
+              </div>
+
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+                Prices set here are shown to users on the membership page.
+                Changes take effect immediately.
+              </div>
+
+              <div className="bg-card border border-border rounded-2xl overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Plan</TableHead>
+                      <TableHead>Monthly Price</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(
+                      [
+                        { id: "starter" as const, name: "Starter" },
+                        { id: "pro" as const, name: "Pro" },
+                        { id: "enterprise" as const, name: "Enterprise" },
+                      ] as const
+                    ).map((plan) => (
+                      <TableRow key={plan.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg ai-gradient flex items-center justify-center shrink-0">
+                              <span className="text-white text-xs font-bold">
+                                {plan.name.charAt(0)}
+                              </span>
+                            </div>
+                            <span className="font-medium text-sm">
+                              {plan.name}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {editingPlanId === plan.id ? (
+                            <div className="flex items-center gap-2 max-w-[160px]">
+                              <span className="text-muted-foreground text-sm">
+                                $
+                              </span>
+                              <Input
+                                type="number"
+                                min="1"
+                                step="0.01"
+                                value={editingPriceValue}
+                                onChange={(e) =>
+                                  setEditingPriceValue(e.target.value)
+                                }
+                                className="h-8 w-24 text-sm"
+                                autoFocus
+                              />
+                            </div>
+                          ) : (
+                            <span className="font-semibold text-sm">
+                              ${planPrices[plan.id]}
+                              <span className="text-muted-foreground font-normal">
+                                /mo
+                              </span>
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {editingPlanId === plan.id ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs ai-gradient text-white border-0"
+                                onClick={() => {
+                                  const val =
+                                    Number.parseFloat(editingPriceValue);
+                                  if (Number.isNaN(val) || val < 1) {
+                                    toast.error("Price must be at least $1");
+                                    return;
+                                  }
+                                  const updated = {
+                                    ...planPrices,
+                                    [plan.id]: val,
+                                  };
+                                  setPlanPrices(updated);
+                                  savePlanPrices(updated);
+                                  setEditingPlanId(null);
+                                  toast.success("Prices updated.");
+                                }}
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => setEditingPlanId(null)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                setEditingPlanId(plan.id);
+                                setEditingPriceValue(
+                                  planPrices[plan.id].toString(),
+                                );
+                              }}
+                              title={`Edit ${plan.name} price`}
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </TabsContent>
 
             {/* ── Tab 2: Subscription Management ── */}

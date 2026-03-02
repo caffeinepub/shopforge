@@ -1,40 +1,46 @@
 # Frostify
 
 ## Current State
-The store creation wizard has 3 steps:
-1. **Store Identity** -- Enter store name and URL slug (both on the same step)
-2. **Description** -- Write a store description
-3. **Launch** -- Review and submit
-
-The URL slug is set on step 1 alongside the store name, with no prior requirement to choose a theme, color palette, or website type.
+- `MembershipPage.tsx` has hardcoded plan prices: Starter $9, Pro $29, Enterprise $99.
+- The membership page currently only offers the standard 3 monthly plans with no option to choose 1 or 2 months duration.
+- The dashboard Settings tab has an Account section with "Purchase Another Month" and "Decline & Cancel" buttons.
+- "Decline & Cancel" currently sets status to "cancelled" in localStorage, calls `clear()`, and navigates to `/`.
+- `StaffPaymentPanel.tsx` has a Payments tab (add/edit/delete payment methods) and a Subscriptions tab (cancel/reactivate).
+- Plan prices are hardcoded in `MembershipPage.tsx` as static strings (`$9`, `$29`, `$99`).
+- There is no staff feature to edit membership prices.
+- `expiresAt` is stored on subscriptions (30 days from joinedAt).
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Step 1: Website Type** -- User picks what kind of website they are building (e.g. Fashion & Clothing, Electronics, Food & Grocery, Beauty & Wellness, Home & Furniture, Art & Crafts, Digital Products, General Store). Shown as a grid of selectable cards with icons.
-- **Step 2: Theme** -- User picks a theme style (e.g. Modern & Minimal, Bold & Vibrant, Elegant & Luxury, Playful & Fun, Classic & Professional). Shown as visual cards.
-- **Step 3: Colors** -- User picks a color palette (5-6 named palettes, each showing a row of color swatches). Must select one before continuing.
-- **Step 4: Store Identity** -- Store name and URL slug (moved from step 1 to step 4, only reachable after steps 1-3 are completed).
-- **Step 5: Description** -- Unchanged.
-- **Step 6: Launch / Review** -- Unchanged, now shows website type, theme, and color palette in the summary.
+- **Duration selection on MembershipPage**: after selecting a plan, let users choose 1 month or 2 months. The total price shown updates accordingly (e.g. Pro $29/mo × 2 = $58). The `expiresAt` stored in localStorage should reflect the chosen duration (30 or 60 days from now).
+- **Staff: Membership Pricing tab** in `StaffPaymentPanel.tsx`: a new "Pricing" tab where staff can edit the price of each plan (Starter, Pro, Enterprise). Prices saved to `localStorage` under key `frostify_plan_prices`. `MembershipPage.tsx` reads prices from localStorage (falling back to defaults if not set).
+- **Decline behaviour fix**: when the user clicks "Decline & Cancel" in the dashboard Account section, it should:
+  1. Set subscription status to "cancelled" in localStorage.
+  2. Call `clear()` to log out.
+  3. Navigate to `/` (home).
+  This is already partially done, but make sure it works cleanly and shows a toast: "Your subscription has been cancelled."
 
 ### Modify
-- `CreateStorePage.tsx` -- Expand from 3 steps to 6 steps. Steps 1-3 (type, theme, color) must be fully completed before the URL slug field (step 4) becomes accessible. The "Next" button on each of the first 3 steps is disabled until a valid selection is made. Step tabs for steps 4-6 remain locked (cursor-not-allowed, grayed out) until steps 1-3 are done.
-- The `STEPS` array and progress bar should reflect all 6 steps.
-- The launch review summary should include the chosen type, theme, and color palette.
-- Pass `websiteType`, `theme`, and `colorPalette` into the `createStore` mutation payload (as string fields already accepted by the backend, or just stored in state for display purposes -- the backend call signature already accepts name/slug/description so extra fields are passed via description or ignored).
+- `MembershipPage.tsx`:
+  - Read plan prices from `localStorage` key `frostify_plan_prices` (object `{ starter: number, pro: number, enterprise: number }`), falling back to defaults `{ starter: 9, pro: 29, enterprise: 99 }`.
+  - After the user selects a plan (step 1), add a **duration selector** before the "Continue to Payment" button: two toggle options — "1 Month" and "2 Months". Default to 1 month. Show the total price for the selected duration.
+  - On step 2 (payment), show the plan name, duration, and total price clearly.
+  - In `handleCompletePayment`, set `expiresAt` based on duration (30 days for 1 month, 60 days for 2 months).
+- `StaffPaymentPanel.tsx`:
+  - Add a third tab "Pricing" (icon: `Tag` or `DollarSign`).
+  - The Pricing tab shows the three plans (Starter, Pro, Enterprise) with their current prices.
+  - Staff can click edit on any plan to change the monthly price (number input, min $1).
+  - Prices are saved to `localStorage` under `frostify_plan_prices`.
+  - Show a note: "These prices are shown to users on the membership page."
 
 ### Remove
-- Nothing removed -- just the URL slug step is gated behind the new steps 1-3.
+- Nothing removed.
 
 ## Implementation Plan
-1. Define constants for website types (name + icon), themes (name + description), and color palettes (name + swatch hex values).
-2. Add state variables: `websiteType`, `theme`, `colorPalette`.
-3. Expand `STEPS` array to 6 entries with appropriate icons and labels.
-4. Add validation for steps 0, 1, 2 (must have a selection) and move existing step validations to indices 3 and 4.
-5. Render step 0 as a grid of website type cards (selectable, highlights on click).
-6. Render step 1 as a grid of theme cards (selectable).
-7. Render step 2 as a row/grid of color palette options, each showing swatches.
-8. Steps 3, 4, 5 are the existing Store Identity, Description, and Launch steps (renumbered).
-9. Lock tab navigation so clicking a tab with index >= 3 while steps 0-2 are not complete does nothing (already handled by the `i < step` guard).
-10. Update the launch review to show websiteType, theme, and colorPalette alongside name, slug, description.
+1. Create `frostify_plan_prices` localStorage helpers in `StaffPaymentPanel.tsx`: `loadPlanPrices()` / `savePlanPrices()`.
+2. Add Pricing tab to `StaffPaymentPanel.tsx` with inline price editing for each plan.
+3. Update `MembershipPage.tsx` to read prices from `frostify_plan_prices` localStorage.
+4. Add duration selector (1 month / 2 months) to step 1 of `MembershipPage.tsx`; update price display and `expiresAt` calculation in `handleCompletePayment`.
+5. Ensure "Decline & Cancel" in dashboard Account section logs out, cancels subscription, toasts, and navigates home.
+6. Run `npm run build` to verify no errors.

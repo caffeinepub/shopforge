@@ -25,6 +25,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useCreateStore } from "../hooks/useQueries";
+import { getSubscription, isSubscriptionActive } from "../utils/subscription";
 
 const STEPS = [
   { icon: LayoutGrid, label: "Type", title: "What kind of store?" },
@@ -134,6 +135,11 @@ export default function CreateStorePage() {
   useEffect(() => {
     if (!identity) {
       navigate({ to: "/login" });
+      return;
+    }
+    const sub = getSubscription();
+    if (!isSubscriptionActive(sub)) {
+      navigate({ to: "/membership" });
     }
   }, [identity, navigate]);
 

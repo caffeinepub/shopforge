@@ -2,11 +2,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Bot,
+  Calendar,
   Check,
   CheckCircle,
   Copy,
@@ -18,11 +20,31 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-const PLANS = [
+const DEFAULT_PLAN_PRICES = { starter: 9, pro: 29, enterprise: 99 };
+
+function loadPlanPrices(): {
+  starter: number;
+  pro: number;
+  enterprise: number;
+} {
+  try {
+    const stored = localStorage.getItem("frostify_plan_prices");
+    if (stored)
+      return JSON.parse(stored) as {
+        starter: number;
+        pro: number;
+        enterprise: number;
+      };
+  } catch {
+    // ignore
+  }
+  return DEFAULT_PLAN_PRICES;
+}
+
+const PLAN_DEFS = [
   {
-    id: "starter",
+    id: "starter" as const,
     name: "Starter",
-    price: "$9",
     period: "/mo",
     description: "Perfect for creators just getting started.",
     highlight: false,
@@ -36,9 +58,8 @@ const PLANS = [
     ],
   },
   {
-    id: "pro",
+    id: "pro" as const,
     name: "Pro",
-    price: "$29",
     period: "/mo",
     description: "Everything you need to grow your business.",
     highlight: true,
@@ -53,9 +74,8 @@ const PLANS = [
     ],
   },
   {
-    id: "enterprise",
+    id: "enterprise" as const,
     name: "Enterprise",
-    price: "$99",
     period: "/mo",
     description: "For power sellers with multiple brands.",
     highlight: false,
@@ -151,10 +171,20 @@ function getPaymentMethods(): PaymentMethod[] {
 export default function MembershipPage() {
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedPlan, setSelectedPlan] = useState<string>("pro");
+  const [duration, setDuration] = useState<1 | 2>(1);
   const [paypalUsername, setPaypalUsername] = useState("");
   const [fullName, setFullName] = useState("");
   const [errors, setErrors] = useState<{ paypal?: string; name?: string }>({});
   const navigate = useNavigate();
+  const search = useSearch({ strict: false }) as Record<string, string>;
+  const isExpired = search?.expired === "1";
+
+  const planPrices = loadPlanPrices();
+  const PLANS = PLAN_DEFS.map((p) => ({
+    ...p,
+    price: `$${planPrices[p.id]}`,
+    monthlyPrice: planPrices[p.id],
+  }));
 
   const paymentMethods = getPaymentMethods();
 
@@ -183,13 +213,20 @@ export default function MembershipPage() {
     if (!validatePayment()) return;
 
     const plan = PLANS.find((p) => p.id === selectedPlan);
+    const joinedAt = new Date().toISOString();
+    const daysToAdd = duration === 2 ? 60 : 30;
+    const expiresAt = new Date(
+      Date.now() + daysToAdd * 24 * 60 * 60 * 1000,
+    ).toISOString();
     const subscription = {
       id: Date.now(),
       name: fullName.trim(),
       paypalUsername: paypalUsername.trim(),
       plan: plan?.name ?? selectedPlan,
+      duration,
       status: "pending",
-      joinedAt: new Date().toISOString(),
+      joinedAt,
+      expiresAt,
     };
 
     try {
@@ -250,6 +287,28 @@ export default function MembershipPage() {
             )}
           </div>
         </header>
+
+        {/* Expired subscription notice */}
+        {isExpired && (
+          <div className="container mx-auto px-4 pt-6 max-w-6xl">
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl px-5 py-4 mb-2"
+            >
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-amber-700 dark:text-amber-400 font-semibold text-sm">
+                  Your subscription has expired
+                </p>
+                <p className="text-amber-700/70 dark:text-amber-400/70 text-xs mt-0.5">
+                  Please renew your membership to continue using Frostify.
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        )}
 
         {/* Step indicator */}
         <div className="container mx-auto px-4 pt-8 max-w-6xl">
@@ -439,6 +498,55 @@ export default function MembershipPage() {
                 })}
               </motion.div>
 
+              {/* ── Duration Selector ────────────────────────── */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.45 }}
+                className="flex flex-col items-center gap-3 mb-8"
+              >
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold text-foreground">
+                    Choose duration
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 bg-secondary/60 rounded-full p-1">
+                  <button
+                    type="button"
+                    onClick={() => setDuration(1)}
+                    className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
+                      duration === 1
+                        ? "ai-gradient text-white shadow-glow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    1 Month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDuration(2)}
+                    className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
+                      duration === 2
+                        ? "ai-gradient text-white shadow-glow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    2 Months
+                  </button>
+                </div>
+                {duration === 2 && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-sm text-primary font-medium"
+                  >
+                    {`2 × $${PLANS.find((p) => p.id === selectedPlan)?.monthlyPrice ?? 0} = $${(PLANS.find((p) => p.id === selectedPlan)?.monthlyPrice ?? 0) * 2} total`}
+                  </motion.p>
+                )}
+              </motion.div>
+
               {/* ── CTA ──────────────────────────────────────── */}
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
@@ -488,14 +596,19 @@ export default function MembershipPage() {
                   enter your PayPal username so we can verify your payment.
                 </p>
                 {/* Selected plan summary */}
-                <div className="inline-flex items-center gap-2 mt-4 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-primary" />
-                  <span className="text-sm font-semibold text-primary">
-                    {PLANS.find((p) => p.id === selectedPlan)?.name} Plan —{" "}
-                    {PLANS.find((p) => p.id === selectedPlan)?.price}
-                    {PLANS.find((p) => p.id === selectedPlan)?.period}
-                  </span>
-                </div>
+                {(() => {
+                  const plan = PLANS.find((p) => p.id === selectedPlan);
+                  const totalPrice = (plan?.monthlyPrice ?? 0) * duration;
+                  return (
+                    <div className="inline-flex items-center gap-2 mt-4 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-sm font-semibold text-primary">
+                        {plan?.name} Plan · {duration} month
+                        {duration > 1 ? "s" : ""} — ${totalPrice} total
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Payment Methods */}
