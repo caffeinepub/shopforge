@@ -224,7 +224,7 @@ export default function MembershipPage() {
       paypalUsername: paypalUsername.trim(),
       plan: plan?.name ?? selectedPlan,
       duration,
-      status: "pending",
+      status: "active",
       joinedAt,
       expiresAt,
     };
@@ -242,7 +242,7 @@ export default function MembershipPage() {
       );
     }
 
-    toast.success("Payment submitted! We'll confirm your access shortly.");
+    toast.success("Membership activated! You can now log in.");
     navigate({ to: "/login" });
   }
 

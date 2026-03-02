@@ -3,7 +3,7 @@ export interface Subscription {
   name: string;
   paypalUsername: string;
   plan: string;
-  status: "pending" | "active" | "cancelled";
+  status: "pending" | "active" | "cancelled" | "unpaid";
   joinedAt: string;
   expiresAt?: string; // ISO string
 }
@@ -22,6 +22,8 @@ export function getSubscription(): Subscription | null {
 
 export function isSubscriptionActive(sub: Subscription | null): boolean {
   if (!sub) return false;
+  // unpaid subs have access but show a warning banner
+  if (sub.status === "unpaid") return true;
   if (sub.status !== "active") return false;
   if (!sub.expiresAt) return true; // legacy records without expiry are treated as active
   return new Date(sub.expiresAt) > new Date();

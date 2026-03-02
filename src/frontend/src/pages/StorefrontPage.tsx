@@ -16,6 +16,7 @@ import {
   Crown,
   Home,
   Loader2,
+  Lock,
   Minus,
   Package,
   Plus,
@@ -330,6 +331,16 @@ export default function StorefrontPage() {
                 £
               </button>
             </div>
+            <Link to="/staff">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Lock className="h-3.5 w-3.5 mr-1.5" />
+                Staff
+              </Button>
+            </Link>
             <Button
               variant="outline"
               onClick={() => setCartOpen(true)}

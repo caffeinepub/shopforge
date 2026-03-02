@@ -32,7 +32,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "@tanstack/react-router";
 import {
+  AlertTriangle,
   ArrowLeft,
+  CheckCircle,
   CreditCard,
   DollarSign,
   Edit2,
@@ -65,7 +67,7 @@ interface Subscription {
   name: string;
   paypalUsername: string;
   plan: string;
-  status: "pending" | "active" | "cancelled";
+  status: "pending" | "active" | "cancelled" | "unpaid";
   joinedAt: string;
 }
 
@@ -156,14 +158,20 @@ function savePlanPrices(prices: {
 function StatusBadge({ status }: { status: Subscription["status"] }) {
   if (status === "active")
     return (
-      <Badge className="bg-success/20 text-success border-success/30">
+      <Badge className="bg-green-500/20 text-green-600 border-green-500/30 dark:text-green-400">
         Active
       </Badge>
     );
   if (status === "cancelled")
     return <Badge variant="destructive">Cancelled</Badge>;
+  if (status === "unpaid")
+    return (
+      <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30 dark:text-orange-400">
+        Unpaid Warning
+      </Badge>
+    );
   return (
-    <Badge className="bg-warning/20 text-warning border-warning/30">
+    <Badge className="bg-yellow-500/20 text-yellow-600 border-yellow-500/30 dark:text-yellow-400">
       Pending
     </Badge>
   );
@@ -302,9 +310,11 @@ function StaffPanel() {
     Partial<Record<keyof MethodFormData, string>>
   >({});
 
-  // Cancel/reactivate confirmation
+  // Cancel/reactivate/warn/activate confirmation
   const [cancelSubId, setCancelSubId] = useState<number | null>(null);
   const [reactivateSubId, setReactivateSubId] = useState<number | null>(null);
+  const [warnSubId, setWarnSubId] = useState<number | null>(null);
+  const [activateSubId, setActivateSubId] = useState<number | null>(null);
 
   // Plan pricing
   const [planPrices, setPlanPrices] = useState(loadPlanPrices);
@@ -409,6 +419,26 @@ function StaffPanel() {
     saveSubscriptions(updated);
     setReactivateSubId(null);
     toast.success("Subscription reactivated to pending review.");
+  }
+
+  function handleWarnUnpaid(id: number) {
+    const updated = subscriptions.map((s) =>
+      s.id === id ? { ...s, status: "unpaid" as const } : s,
+    );
+    setSubscriptions(updated);
+    saveSubscriptions(updated);
+    setWarnSubId(null);
+    toast.success("User warned: no payment received.");
+  }
+
+  function handleActivateSubscription(id: number) {
+    const updated = subscriptions.map((s) =>
+      s.id === id ? { ...s, status: "active" as const } : s,
+    );
+    setSubscriptions(updated);
+    saveSubscriptions(updated);
+    setActivateSubId(null);
+    toast.success("Subscription marked as active.");
   }
 
   return (
@@ -794,27 +824,59 @@ function StaffPanel() {
                             {new Date(sub.joinedAt).toLocaleDateString()}
                           </TableCell>
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              {sub.status !== "cancelled" ? (
+                            <div className="flex items-center justify-end gap-1 flex-wrap">
+                              {sub.status === "cancelled" ? (
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-7 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
-                                  onClick={() => setCancelSubId(sub.id)}
+                                  className="h-7 text-xs text-green-600 border-green-500/30 hover:bg-green-500/10"
+                                  onClick={() => setActivateSubId(sub.id)}
                                 >
-                                  <XCircle className="w-3 h-3 mr-1" />
-                                  Cancel
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Activate
                                 </Button>
+                              ) : sub.status === "unpaid" ? (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs text-green-600 border-green-500/30 hover:bg-green-500/10"
+                                    onClick={() => setActivateSubId(sub.id)}
+                                  >
+                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                    Mark Paid
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                                    onClick={() => setCancelSubId(sub.id)}
+                                  >
+                                    <XCircle className="w-3 h-3 mr-1" />
+                                    Cancel
+                                  </Button>
+                                </>
                               ) : (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 text-xs text-success border-success/30 hover:bg-success/10"
-                                  onClick={() => setReactivateSubId(sub.id)}
-                                >
-                                  <RefreshCw className="w-3 h-3 mr-1" />
-                                  Reactivate
-                                </Button>
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs text-orange-600 border-orange-500/30 hover:bg-orange-500/10"
+                                    onClick={() => setWarnSubId(sub.id)}
+                                  >
+                                    <AlertTriangle className="w-3 h-3 mr-1" />
+                                    No Payment
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                                    onClick={() => setCancelSubId(sub.id)}
+                                  >
+                                    <XCircle className="w-3 h-3 mr-1" />
+                                    Cancel
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </TableCell>
@@ -989,9 +1051,64 @@ function StaffPanel() {
                 reactivateSubId !== null &&
                 handleReactivateSubscription(reactivateSubId)
               }
-              className="bg-success text-success-foreground hover:bg-success/90"
+              className="bg-green-600 text-white hover:bg-green-700"
             >
               Reactivate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Warn No Payment Confirmation ── */}
+      <AlertDialog
+        open={warnSubId !== null}
+        onOpenChange={(o) => !o && setWarnSubId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Warn User: No Payment Received</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will flag the user's account as "Unpaid Warning". They will
+              still have access but will see a prominent warning in their
+              dashboard saying their payment has not been verified. Use this
+              when you haven't seen their payment come through.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => warnSubId !== null && handleWarnUnpaid(warnSubId)}
+              className="bg-orange-600 text-white hover:bg-orange-700"
+            >
+              Send Warning
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Activate / Mark Paid Confirmation ── */}
+      <AlertDialog
+        open={activateSubId !== null}
+        onOpenChange={(o) => !o && setActivateSubId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Activate Subscription</AlertDialogTitle>
+            <AlertDialogDescription>
+              Confirm you have received the payment and want to set this
+              subscription to Active. The user's warning will be cleared.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                activateSubId !== null &&
+                handleActivateSubscription(activateSubId)
+              }
+              className="bg-green-600 text-white hover:bg-green-700"
+            >
+              Activate
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

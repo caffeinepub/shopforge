@@ -6,6 +6,7 @@ import {
   BarChart3,
   Bot,
   Globe,
+  Lock,
   Package,
   Shield,
   ShoppingBag,
@@ -177,6 +178,16 @@ export default function LandingPage() {
             <Link to="/login">
               <Button variant="ghost" size="sm">
                 Log In
+              </Button>
+            </Link>
+            <Link to="/staff">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Lock className="h-3.5 w-3.5 mr-1.5" />
+                Staff
               </Button>
             </Link>
             <Link to="/login">

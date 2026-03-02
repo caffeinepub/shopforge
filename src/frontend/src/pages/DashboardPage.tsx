@@ -964,6 +964,17 @@ export default function DashboardPage() {
         </header>
 
         {/* Subscription Status Banners */}
+        {subscription?.status === "unpaid" && (
+          <Alert className="rounded-none border-x-0 border-t-0 bg-orange-500/10 border-orange-500/30 flex items-center">
+            <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0" />
+            <AlertDescription className="text-orange-700 dark:text-orange-400 font-medium flex-1 ml-2">
+              <span className="font-bold">Payment Warning:</span> Our staff have
+              not received your payment. Please send your membership fee and
+              contact support to resolve this. Your access may be cancelled if
+              payment is not received.
+            </AlertDescription>
+          </Alert>
+        )}
         {isSubscriptionExpiringSoon(subscription) && !expirySoonDismissed && (
           <Alert className="rounded-none border-x-0 border-t-0 bg-amber-500/10 border-amber-500/30 flex items-center">
             <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -991,6 +1002,7 @@ export default function DashboardPage() {
         )}
         {isSubscriptionActive(subscription) &&
           !isSubscriptionExpiringSoon(subscription) &&
+          subscription?.status !== "unpaid" &&
           !reminderDismissed && (
             <Alert className="rounded-none border-x-0 border-t-0 bg-primary/5 border-primary/20 flex items-center">
               <Info className="h-4 w-4 text-primary shrink-0" />
@@ -1920,13 +1932,18 @@ export default function DashboardPage() {
                       </div>
                       <div>
                         {subscription?.status === "active" && (
-                          <Badge className="bg-success/20 text-success border-success/30 text-xs">
+                          <Badge className="bg-green-500/20 text-green-600 border-green-500/30 text-xs dark:text-green-400">
                             Active
                           </Badge>
                         )}
                         {(subscription?.status as string) === "pending" && (
                           <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
                             Pending
+                          </Badge>
+                        )}
+                        {subscription?.status === "unpaid" && (
+                          <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30 text-xs dark:text-orange-400">
+                            Unpaid Warning
                           </Badge>
                         )}
                         {(subscription?.status === "cancelled" ||
