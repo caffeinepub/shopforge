@@ -826,7 +826,7 @@ export default function StorefrontPage() {
       <footer className="border-t border-border mt-16 py-6 text-center text-sm text-muted-foreground">
         Powered by{" "}
         <span className="font-display font-bold">
-          Shop<span className="ai-gradient-text">Forge</span>
+          Frost<span className="ai-gradient-text">ify</span>
         </span>{" "}
         · © {new Date().getFullYear()}
       </footer>

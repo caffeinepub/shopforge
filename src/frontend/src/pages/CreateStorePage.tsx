@@ -83,7 +83,7 @@ export default function CreateStorePage() {
         slug: slug.trim(),
         description: description.trim(),
       });
-      toast.success("Store created! 🎉 Welcome to ShopForge!");
+      toast.success("Store created! 🎉 Welcome to Frostify!");
       navigate({ to: "/dashboard" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to create store";
@@ -202,7 +202,7 @@ export default function CreateStorePage() {
                     <Label htmlFor="slug">Store URL</Label>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground whitespace-nowrap">
-                        shopforge.io/store/
+                        frostify.io/store/
                       </span>
                       <Input
                         id="slug"
@@ -226,7 +226,7 @@ export default function CreateStorePage() {
                     )}
                     {slug && !errors.slug && (
                       <p className="text-xs text-success">
-                        ✓ shopforge.io/store/{slug}
+                        ✓ frostify.io/store/{slug}
                       </p>
                     )}
                   </div>
@@ -302,7 +302,7 @@ export default function CreateStorePage() {
                         Your URL
                       </div>
                       <div className="font-mono-custom text-sm text-primary">
-                        shopforge.io/store/{slug}
+                        frostify.io/store/{slug}
                       </div>
                     </div>
                     <div>

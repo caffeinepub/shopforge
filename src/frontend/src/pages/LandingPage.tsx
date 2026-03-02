@@ -78,7 +78,7 @@ const FEATURES = [
     icon: Globe,
     title: "Your Own Store Link",
     description:
-      "Every store gets a unique URL at shopforge.io/store/your-name. Share it anywhere, instantly.",
+      "Every store gets a unique URL at frostify.io/store/your-name. Share it anywhere, instantly.",
   },
   {
     icon: Bot,
@@ -146,11 +146,11 @@ export default function LandingPage() {
           <Link to="/" className="flex items-center gap-2">
             <img
               src="/assets/generated/shopforge-logo-transparent.dim_120x120.png"
-              alt="ShopForge"
+              alt="Frostify"
               className="h-8 w-8 object-contain"
             />
             <span className="font-display font-bold text-xl tracking-tight">
-              Shop<span className="ai-gradient-text">Forge</span>
+              Frost<span className="ai-gradient-text">ify</span>
             </span>
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
@@ -349,7 +349,7 @@ export default function LandingPage() {
               <span className="ai-gradient-text">sell online</span>
             </h2>
             <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-              ShopForge gives you all the tools to build, grow, and manage your
+              Frostify gives you all the tools to build, grow, and manage your
               online business—powered by AI.
             </p>
           </motion.div>
@@ -501,11 +501,11 @@ export default function LandingPage() {
             <div className="flex items-center gap-2">
               <img
                 src="/assets/generated/shopforge-logo-transparent.dim_120x120.png"
-                alt="ShopForge"
+                alt="Frostify"
                 className="h-6 w-6 object-contain"
               />
               <span className="font-display font-bold">
-                Shop<span className="ai-gradient-text">Forge</span>
+                Frost<span className="ai-gradient-text">ify</span>
               </span>
             </div>
             <nav className="flex items-center gap-6 text-sm text-muted-foreground">

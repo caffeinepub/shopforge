@@ -1,3 +1,4 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,12 +42,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
+  AlertTriangle,
   BarChart3,
   Bot,
   Check,
   DollarSign,
   Edit2,
   ExternalLink,
+  Info,
   LayoutDashboard,
   Loader2,
   LogOut,
@@ -169,12 +172,36 @@ const CATEGORIES = [
   "Other",
 ];
 
+interface Subscription {
+  id: number;
+  name: string;
+  paypalUsername: string;
+  plan: string;
+  status: "pending" | "active" | "cancelled";
+  joinedAt: string;
+}
+
+function getSubscriptionStatus(): "pending" | "active" | "cancelled" | null {
+  try {
+    const subs = JSON.parse(
+      localStorage.getItem("frostify_subscriptions") ?? "[]",
+    ) as Subscription[];
+    if (subs.length === 0) return null;
+    // Return the most recent subscription status
+    const latest = subs[subs.length - 1];
+    return latest?.status ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { clear, identity } = useInternetIdentity();
   const { currency, setCurrency, formatPrice } = useCurrency();
   const [activeTab, setActiveTab] = useState<DashTab>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const subscriptionStatus = getSubscriptionStatus();
 
   const { data: store, isLoading: storeLoading } = useMyStore();
 
@@ -449,11 +476,11 @@ export default function DashboardPage() {
         <div className="p-5 flex items-center gap-2.5 border-b border-sidebar-border">
           <img
             src="/assets/generated/shopforge-logo-transparent.dim_120x120.png"
-            alt="ShopForge"
+            alt="Frostify"
             className="w-8 h-8 object-contain"
           />
           <span className="font-display font-bold text-sidebar-foreground text-lg">
-            Shop
+            Frost
             <span
               style={{
                 background:
@@ -463,7 +490,7 @@ export default function DashboardPage() {
                 WebkitTextFillColor: "transparent",
               }}
             >
-              Forge
+              ify
             </span>
           </span>
           <button
@@ -608,6 +635,26 @@ export default function DashboardPage() {
             </Link>
           </div>
         </header>
+
+        {/* Subscription Status Banner */}
+        {subscriptionStatus === "cancelled" && (
+          <Alert className="rounded-none border-x-0 border-t-0 bg-destructive/10 border-destructive/30">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <AlertDescription className="text-destructive font-medium">
+              ⚠️ Your subscription has been cancelled. Please contact support or
+              make a new payment to restore access.
+            </AlertDescription>
+          </Alert>
+        )}
+        {subscriptionStatus === "pending" && (
+          <Alert className="rounded-none border-x-0 border-t-0 bg-primary/10 border-primary/30">
+            <Info className="h-4 w-4 text-primary" />
+            <AlertDescription className="text-primary font-medium">
+              ℹ️ Your payment is under review. Access will be activated once
+              payment is confirmed.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
@@ -1322,7 +1369,7 @@ export default function DashboardPage() {
                     <Label htmlFor="settings-slug">Store URL</Label>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground whitespace-nowrap">
-                        shopforge.io/store/
+                        frostify.io/store/
                       </span>
                       <Input
                         id="settings-slug"

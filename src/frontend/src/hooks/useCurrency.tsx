@@ -15,7 +15,7 @@ interface CurrencyContextValue {
   symbol: string;
 }
 
-const STORAGE_KEY = "shopforge_currency";
+const STORAGE_KEY = "frostify_currency";
 
 // Rough exchange rate – display only, not used for backend storage
 const RATES: Record<Currency, number> = {

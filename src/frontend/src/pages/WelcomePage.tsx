@@ -80,7 +80,7 @@ const FEATURES = [
     icon: Globe,
     title: "Your Own Store Link",
     description:
-      "Every store gets a unique URL at shopforge.io/store/your-name. Share it anywhere, instantly.",
+      "Every store gets a unique URL at frostify.io/store/your-name. Share it anywhere, instantly.",
   },
   {
     icon: Bot,
@@ -221,11 +221,11 @@ export default function WelcomePage() {
           <Link to="/" className="flex items-center gap-2">
             <img
               src="/assets/generated/shopforge-logo-transparent.dim_120x120.png"
-              alt="ShopForge"
+              alt="Frostify"
               className="h-8 w-8 object-contain"
             />
             <span className="font-display font-bold text-xl tracking-tight">
-              Shop<span className="ai-gradient-text">Forge</span>
+              Frost<span className="ai-gradient-text">ify</span>
             </span>
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
@@ -427,7 +427,7 @@ export default function WelcomePage() {
               <span className="ai-gradient-text">e-commerce for everyone</span>
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto leading-relaxed">
-              ShopForge was built on a simple belief: anyone with a great idea
+              Frostify was built on a simple belief: anyone with a great idea
               should be able to sell it online — without needing a developer, a
               big budget, or technical expertise. We combine the power of the
               decentralized web with AI to give every seller an unfair
@@ -449,7 +449,7 @@ export default function WelcomePage() {
             <blockquote className="font-display text-2xl md:text-3xl font-bold tracking-tight leading-snug text-foreground mb-4">
               "Sell smarter, not harder. Your store, your rules, your future."
             </blockquote>
-            <p className="text-muted-foreground">— The ShopForge Mission</p>
+            <p className="text-muted-foreground">— The Frostify Mission</p>
           </motion.div>
 
           {/* How it Works */}
@@ -522,7 +522,7 @@ export default function WelcomePage() {
               <span className="ai-gradient-text">sell online</span>
             </h2>
             <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-              ShopForge gives you all the tools to build, grow, and manage your
+              Frostify gives you all the tools to build, grow, and manage your
               online business — powered by AI.
             </p>
           </motion.div>
@@ -748,11 +748,11 @@ export default function WelcomePage() {
             <div className="flex items-center gap-2">
               <img
                 src="/assets/generated/shopforge-logo-transparent.dim_120x120.png"
-                alt="ShopForge"
+                alt="Frostify"
                 className="h-6 w-6 object-contain"
               />
               <span className="font-display font-bold">
-                Shop<span className="ai-gradient-text">Forge</span>
+                Frost<span className="ai-gradient-text">ify</span>
               </span>
             </div>
             <nav className="flex items-center gap-6 text-sm text-muted-foreground">
@@ -787,18 +787,26 @@ export default function WelcomePage() {
                 Log In
               </Link>
             </nav>
-            <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()}. Built with{" "}
-              <span className="text-destructive">♥</span> using{" "}
-              <a
-                href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
+            <div className="flex items-center gap-4">
+              <p className="text-sm text-muted-foreground">
+                © {new Date().getFullYear()}. Built with{" "}
+                <span className="text-destructive">♥</span> using{" "}
+                <a
+                  href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  caffeine.ai
+                </a>
+              </p>
+              <Link
+                to="/staff"
+                className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
               >
-                caffeine.ai
-              </a>
-            </p>
+                Staff
+              </Link>
+            </div>
           </div>
         </div>
       </footer>

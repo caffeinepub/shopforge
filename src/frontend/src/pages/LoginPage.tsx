@@ -64,12 +64,12 @@ export default function LoginPage() {
             <div className="w-16 h-16 rounded-2xl ai-gradient flex items-center justify-center mb-4 shadow-glow">
               <img
                 src="/assets/generated/shopforge-logo-transparent.dim_120x120.png"
-                alt="ShopForge"
+                alt="Frostify"
                 className="w-10 h-10 object-contain"
               />
             </div>
             <h1 className="font-display text-2xl font-black tracking-tight">
-              Welcome to Shop<span className="ai-gradient-text">Forge</span>
+              Welcome to Frost<span className="ai-gradient-text">ify</span>
             </h1>
             <p className="text-muted-foreground text-sm mt-2 text-center">
               Sign in or create your account to start selling

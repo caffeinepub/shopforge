@@ -7,6 +7,7 @@ import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
 import MembershipPage from "./pages/MembershipPage";
 import NoStorePage from "./pages/NoStorePage";
+import StaffPaymentPanel from "./pages/StaffPaymentPanel";
 import StorefrontPage from "./pages/StorefrontPage";
 import StoresPage from "./pages/StoresPage";
 // Pages
@@ -70,6 +71,12 @@ const noStoreRoute = createRoute({
   component: NoStorePage,
 });
 
+const staffRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/staff",
+  component: StaffPaymentPanel,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   membershipRoute,
@@ -79,6 +86,7 @@ const routeTree = rootRoute.addChildren([
   createStoreRoute,
   dashboardRoute,
   noStoreRoute,
+  staffRoute,
 ]);
 
 const router = createRouter({ routeTree });

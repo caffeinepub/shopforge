@@ -35,11 +35,11 @@ export default function StoresPage() {
           <Link to="/" className="flex items-center gap-2">
             <img
               src="/assets/generated/shopforge-logo-transparent.dim_120x120.png"
-              alt="ShopForge"
+              alt="Frostify"
               className="h-7 w-7 object-contain"
             />
             <span className="font-display font-bold text-lg">
-              Shop<span className="ai-gradient-text">Forge</span>
+              Frost<span className="ai-gradient-text">ify</span>
             </span>
           </Link>
           <Link to="/login">
@@ -66,7 +66,7 @@ export default function StoresPage() {
             Discover Amazing Stores
           </h1>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto mb-8">
-            Browse thousands of independent stores powered by ShopForge.
+            Browse thousands of independent stores powered by Frostify.
           </p>
           <div className="max-w-md mx-auto relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
