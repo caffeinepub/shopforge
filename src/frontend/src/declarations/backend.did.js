@@ -65,6 +65,7 @@ export const Product = IDL.Record({
   'createdAt' : Time,
   'description' : IDL.Text,
   'isActive' : IDL.Bool,
+  'mediaIds' : IDL.Opt(IDL.Vec(IDL.Vec(IDL.Nat8))),
   'stock' : IDL.Nat,
   'category' : IDL.Text,
   'imageId' : IDL.Opt(IDL.Vec(IDL.Nat8)),
@@ -74,6 +75,27 @@ export const StoreAnalytics = IDL.Record({
   'totalOrders' : IDL.Nat,
   'topProducts' : IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Text, IDL.Nat)),
   'totalRevenue' : IDL.Nat,
+});
+export const StoreMembership = IDL.Record({
+  'id' : IDL.Nat,
+  'durationDays' : IDL.Nat,
+  'storeId' : IDL.Nat,
+  'name' : IDL.Text,
+  'createdAt' : Time,
+  'description' : IDL.Text,
+  'isActive' : IDL.Bool,
+  'perks' : IDL.Vec(IDL.Text),
+  'price' : IDL.Nat,
+});
+export const StorePaymentInfo = IDL.Record({
+  'stripeAccountId' : IDL.Opt(IDL.Text),
+  'storeId' : IDL.Nat,
+  'sortCode' : IDL.Opt(IDL.Text),
+  'bankName' : IDL.Opt(IDL.Text),
+  'accountNumber' : IDL.Opt(IDL.Text),
+  'paypalUsername' : IDL.Opt(IDL.Text),
+  'paypalEmail' : IDL.Opt(IDL.Text),
+  'enabledChannels' : IDL.Vec(IDL.Text),
 });
 
 export const idlService = IDL.Service({
@@ -109,11 +131,16 @@ export const idlService = IDL.Service({
       [IDL.Nat],
       [],
     ),
-  'aiAssist' : IDL.Func([IDL.Text, IDL.Text], [IDL.Text], []),
+  'addStoreMembership' : IDL.Func(
+      [IDL.Nat, IDL.Text, IDL.Text, IDL.Nat, IDL.Nat, IDL.Vec(IDL.Text)],
+      [IDL.Nat],
+      [],
+    ),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'createStore' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Nat], []),
   'deleteProduct' : IDL.Func([IDL.Nat], [], []),
   'deleteStore' : IDL.Func([IDL.Nat], [], []),
+  'deleteStoreMembership' : IDL.Func([IDL.Nat], [], []),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getMyStore' : IDL.Func([], [Store], ['query']),
@@ -122,6 +149,12 @@ export const idlService = IDL.Service({
   'getStore' : IDL.Func([IDL.Nat], [Store], ['query']),
   'getStoreAnalytics' : IDL.Func([IDL.Nat], [StoreAnalytics], ['query']),
   'getStoreBySlug' : IDL.Func([IDL.Text], [Store], ['query']),
+  'getStoreMembership' : IDL.Func([IDL.Nat], [StoreMembership], ['query']),
+  'getStorePaymentInfo' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Opt(StorePaymentInfo)],
+      ['query'],
+    ),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
       [IDL.Opt(UserProfile)],
@@ -134,6 +167,11 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'listAllStores' : IDL.Func([], [IDL.Vec(Store)], ['query']),
+  'listMembershipsByStore' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(StoreMembership)],
+      ['query'],
+    ),
   'listMyOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
   'listOrdersByStore' : IDL.Func([IDL.Nat], [IDL.Vec(Order)], ['query']),
   'listProductsByStore' : IDL.Func([IDL.Nat], [IDL.Vec(Product)], ['query']),
@@ -143,13 +181,34 @@ export const idlService = IDL.Service({
       [],
     ),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+  'saveStorePaymentInfo' : IDL.Func([IDL.Nat, StorePaymentInfo], [], []),
   'updateOrderStatus' : IDL.Func([IDL.Nat, OrderStatus], [], []),
   'updateProduct' : IDL.Func(
-      [IDL.Nat, IDL.Text, IDL.Text, IDL.Nat, IDL.Nat],
+      [
+        IDL.Nat,
+        IDL.Text,
+        IDL.Text,
+        IDL.Nat,
+        IDL.Nat,
+        IDL.Opt(IDL.Vec(IDL.Vec(IDL.Nat8))),
+      ],
       [],
       [],
     ),
   'updateStore' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text], [], []),
+  'updateStoreMembership' : IDL.Func(
+      [
+        IDL.Nat,
+        IDL.Text,
+        IDL.Text,
+        IDL.Nat,
+        IDL.Nat,
+        IDL.Vec(IDL.Text),
+        IDL.Bool,
+      ],
+      [],
+      [],
+    ),
 });
 
 export const idlInitArgs = [];
@@ -212,6 +271,7 @@ export const idlFactory = ({ IDL }) => {
     'createdAt' : Time,
     'description' : IDL.Text,
     'isActive' : IDL.Bool,
+    'mediaIds' : IDL.Opt(IDL.Vec(IDL.Vec(IDL.Nat8))),
     'stock' : IDL.Nat,
     'category' : IDL.Text,
     'imageId' : IDL.Opt(IDL.Vec(IDL.Nat8)),
@@ -221,6 +281,27 @@ export const idlFactory = ({ IDL }) => {
     'totalOrders' : IDL.Nat,
     'topProducts' : IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Text, IDL.Nat)),
     'totalRevenue' : IDL.Nat,
+  });
+  const StoreMembership = IDL.Record({
+    'id' : IDL.Nat,
+    'durationDays' : IDL.Nat,
+    'storeId' : IDL.Nat,
+    'name' : IDL.Text,
+    'createdAt' : Time,
+    'description' : IDL.Text,
+    'isActive' : IDL.Bool,
+    'perks' : IDL.Vec(IDL.Text),
+    'price' : IDL.Nat,
+  });
+  const StorePaymentInfo = IDL.Record({
+    'stripeAccountId' : IDL.Opt(IDL.Text),
+    'storeId' : IDL.Nat,
+    'sortCode' : IDL.Opt(IDL.Text),
+    'bankName' : IDL.Opt(IDL.Text),
+    'accountNumber' : IDL.Opt(IDL.Text),
+    'paypalUsername' : IDL.Opt(IDL.Text),
+    'paypalEmail' : IDL.Opt(IDL.Text),
+    'enabledChannels' : IDL.Vec(IDL.Text),
   });
   
   return IDL.Service({
@@ -256,11 +337,16 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Nat],
         [],
       ),
-    'aiAssist' : IDL.Func([IDL.Text, IDL.Text], [IDL.Text], []),
+    'addStoreMembership' : IDL.Func(
+        [IDL.Nat, IDL.Text, IDL.Text, IDL.Nat, IDL.Nat, IDL.Vec(IDL.Text)],
+        [IDL.Nat],
+        [],
+      ),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'createStore' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Nat], []),
     'deleteProduct' : IDL.Func([IDL.Nat], [], []),
     'deleteStore' : IDL.Func([IDL.Nat], [], []),
+    'deleteStoreMembership' : IDL.Func([IDL.Nat], [], []),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getMyStore' : IDL.Func([], [Store], ['query']),
@@ -269,6 +355,12 @@ export const idlFactory = ({ IDL }) => {
     'getStore' : IDL.Func([IDL.Nat], [Store], ['query']),
     'getStoreAnalytics' : IDL.Func([IDL.Nat], [StoreAnalytics], ['query']),
     'getStoreBySlug' : IDL.Func([IDL.Text], [Store], ['query']),
+    'getStoreMembership' : IDL.Func([IDL.Nat], [StoreMembership], ['query']),
+    'getStorePaymentInfo' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Opt(StorePaymentInfo)],
+        ['query'],
+      ),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
@@ -281,6 +373,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'listAllStores' : IDL.Func([], [IDL.Vec(Store)], ['query']),
+    'listMembershipsByStore' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(StoreMembership)],
+        ['query'],
+      ),
     'listMyOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
     'listOrdersByStore' : IDL.Func([IDL.Nat], [IDL.Vec(Order)], ['query']),
     'listProductsByStore' : IDL.Func([IDL.Nat], [IDL.Vec(Product)], ['query']),
@@ -290,13 +387,34 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'saveStorePaymentInfo' : IDL.Func([IDL.Nat, StorePaymentInfo], [], []),
     'updateOrderStatus' : IDL.Func([IDL.Nat, OrderStatus], [], []),
     'updateProduct' : IDL.Func(
-        [IDL.Nat, IDL.Text, IDL.Text, IDL.Nat, IDL.Nat],
+        [
+          IDL.Nat,
+          IDL.Text,
+          IDL.Text,
+          IDL.Nat,
+          IDL.Nat,
+          IDL.Opt(IDL.Vec(IDL.Vec(IDL.Nat8))),
+        ],
         [],
         [],
       ),
     'updateStore' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text], [], []),
+    'updateStoreMembership' : IDL.Func(
+        [
+          IDL.Nat,
+          IDL.Text,
+          IDL.Text,
+          IDL.Nat,
+          IDL.Nat,
+          IDL.Vec(IDL.Text),
+          IDL.Bool,
+        ],
+        [],
+        [],
+      ),
   });
 };
 

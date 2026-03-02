@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -47,9 +48,12 @@ import {
   Bot,
   CalendarClock,
   Check,
+  CreditCard,
+  Crown,
   DollarSign,
   Edit2,
   ExternalLink,
+  ImagePlus,
   Info,
   LayoutDashboard,
   Loader2,
@@ -62,6 +66,7 @@ import {
   Settings,
   ShoppingBag,
   ShoppingCart,
+  Snowflake,
   Sparkles,
   Trash2,
   TrendingUp,
@@ -71,20 +76,31 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { OrderStatus } from "../backend";
-import type { Order, Product } from "../backend.d.ts";
+import type {
+  Order,
+  Product,
+  StoreMembership,
+  StorePaymentInfo,
+} from "../backend.d.ts";
 import { useCurrency } from "../hooks/useCurrency";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAddProduct,
+  useAddStoreMembership,
   useAiAssist,
   useDeleteProduct,
+  useDeleteStoreMembership,
+  useMembershipsByStore,
   useMyStore,
   useOrdersByStore,
   useProductsByStore,
+  useSaveStorePaymentInfo,
   useStoreAnalytics,
+  useStorePaymentInfo,
   useUpdateOrderStatus,
   useUpdateProduct,
   useUpdateStore,
+  useUpdateStoreMembership,
 } from "../hooks/useQueries";
 import {
   cancelSubscription,
@@ -99,12 +115,11 @@ import {
 type DashTab =
   | "overview"
   | "products"
+  | "memberships"
   | "orders"
   | "analytics"
   | "ai"
   | "settings";
-
-// formatPrice is provided by useCurrency hook inside the component
 
 function formatDate(time: bigint) {
   return new Date(Number(time) / 1_000_000).toLocaleDateString();
@@ -183,7 +198,55 @@ const CATEGORIES = [
   "Other",
 ];
 
-// Subscription helpers imported from utils/subscription
+// ── Membership Form ──────────────────────────────────────────
+interface MembershipFormData {
+  name: string;
+  description: string;
+  price: string;
+  durationDays: string;
+  perks: string[];
+  isActive: boolean;
+}
+
+const EMPTY_MEMBERSHIP: MembershipFormData = {
+  name: "",
+  description: "",
+  price: "",
+  durationDays: "30",
+  perks: [],
+  isActive: true,
+};
+
+// ── Payment Info Form ─────────────────────────────────────────
+interface PaymentFormData {
+  paypalEnabled: boolean;
+  paypalEmail: string;
+  paypalUsername: string;
+  bankEnabled: boolean;
+  bankName: string;
+  accountNumber: string;
+  sortCode: string;
+  stripeEnabled: boolean;
+  stripeAccountId: string;
+}
+
+const EMPTY_PAYMENT: PaymentFormData = {
+  paypalEnabled: false,
+  paypalEmail: "",
+  paypalUsername: "",
+  bankEnabled: false,
+  bankName: "",
+  accountNumber: "",
+  sortCode: "",
+  stripeEnabled: false,
+  stripeAccountId: "",
+};
+
+// ── Media Preview Item ────────────────────────────────────────
+interface MediaPreview {
+  file: File;
+  previewUrl: string;
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -223,7 +286,6 @@ export default function DashboardPage() {
       navigate({ to: `/membership${params}` as "/" });
       return;
     }
-    // pending is handled inline — no redirect
   }, [identity, navigate, subscription]);
 
   const { data: products, isLoading: productsLoading } = useProductsByStore(
@@ -235,6 +297,9 @@ export default function DashboardPage() {
   const { data: analytics, isLoading: analyticsLoading } = useStoreAnalytics(
     store?.id,
   );
+  const { data: memberships, isLoading: membershipsLoading } =
+    useMembershipsByStore(store?.id);
+  const { data: paymentInfo } = useStorePaymentInfo(store?.id);
 
   const addProduct = useAddProduct();
   const updateProduct = useUpdateProduct();
@@ -242,6 +307,10 @@ export default function DashboardPage() {
   const updateOrder = useUpdateOrderStatus();
   const updateStore = useUpdateStore();
   const aiAssist = useAiAssist();
+  const addMembership = useAddStoreMembership();
+  const updateMembership = useUpdateStoreMembership();
+  const deleteMembership = useDeleteStoreMembership();
+  const savePaymentInfo = useSaveStorePaymentInfo();
 
   // Product dialog
   const [productDialogOpen, setProductDialogOpen] = useState(false);
@@ -252,6 +321,45 @@ export default function DashboardPage() {
     {},
   );
   const [deleteConfirmId, setDeleteConfirmId] = useState<bigint | null>(null);
+
+  // Product media
+  const [mediaPreviews, setMediaPreviews] = useState<MediaPreview[]>([]);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+
+  // Membership dialog
+  const [membershipDialogOpen, setMembershipDialogOpen] = useState(false);
+  const [editingMembership, setEditingMembership] =
+    useState<StoreMembership | null>(null);
+  const [membershipForm, setMembershipForm] =
+    useState<MembershipFormData>(EMPTY_MEMBERSHIP);
+  const [membershipErrors, setMembershipErrors] = useState<
+    Record<string, string>
+  >({});
+  const [newPerkInput, setNewPerkInput] = useState("");
+  const [deleteMembershipId, setDeleteMembershipId] = useState<bigint | null>(
+    null,
+  );
+
+  // Payment form
+  const [paymentForm, setPaymentForm] =
+    useState<PaymentFormData>(EMPTY_PAYMENT);
+
+  // Load payment info when available
+  useEffect(() => {
+    if (paymentInfo) {
+      setPaymentForm({
+        paypalEnabled: paymentInfo.enabledChannels.includes("paypal"),
+        paypalEmail: paymentInfo.paypalEmail ?? "",
+        paypalUsername: paymentInfo.paypalUsername ?? "",
+        bankEnabled: paymentInfo.enabledChannels.includes("bank"),
+        bankName: paymentInfo.bankName ?? "",
+        accountNumber: paymentInfo.accountNumber ?? "",
+        sortCode: paymentInfo.sortCode ?? "",
+        stripeEnabled: paymentInfo.enabledChannels.includes("stripe"),
+        stripeAccountId: paymentInfo.stripeAccountId ?? "",
+      });
+    }
+  }, [paymentInfo]);
 
   // Settings
   const [settingsName, setSettingsName] = useState("");
@@ -275,6 +383,15 @@ export default function DashboardPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, aiAssist.isPending]);
 
+  // Clean up media preview URLs on unmount
+  useEffect(() => {
+    return () => {
+      for (const m of mediaPreviews) {
+        URL.revokeObjectURL(m.previewUrl);
+      }
+    };
+  }, [mediaPreviews]);
+
   const NAV_ITEMS: {
     id: DashTab;
     icon: typeof LayoutDashboard;
@@ -282,16 +399,19 @@ export default function DashboardPage() {
   }[] = [
     { id: "overview", icon: LayoutDashboard, label: "Overview" },
     { id: "products", icon: Package, label: "Products" },
+    { id: "memberships", icon: Crown, label: "Memberships" },
     { id: "orders", icon: ShoppingCart, label: "Orders" },
     { id: "analytics", icon: BarChart3, label: "Analytics" },
-    { id: "ai", icon: Bot, label: "AI Assistant" },
+    { id: "ai", icon: Snowflake, label: "Frost AI" },
     { id: "settings", icon: Settings, label: "Settings" },
   ];
 
+  // ── Product handlers ──────────────────────────────────────
   function openAddProduct() {
     setEditingProduct(null);
     setProductForm(EMPTY_PRODUCT);
     setProductErrors({});
+    setMediaPreviews([]);
     setProductDialogOpen(true);
   }
 
@@ -305,6 +425,7 @@ export default function DashboardPage() {
       category: p.category,
     });
     setProductErrors({});
+    setMediaPreviews([]);
     setProductDialogOpen(true);
   }
 
@@ -337,6 +458,7 @@ export default function DashboardPage() {
           description: productForm.description.trim(),
           price: priceCents,
           stock: stockInt,
+          mediaIds: null,
         });
         toast.success("Product updated!");
       } else {
@@ -371,6 +493,127 @@ export default function DashboardPage() {
     }
   }
 
+  function handleMediaFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    const newPreviews: MediaPreview[] = files.map((file) => ({
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+    setMediaPreviews((prev) => [...prev, ...newPreviews]);
+    e.target.value = "";
+  }
+
+  function removeMediaPreview(idx: number) {
+    setMediaPreviews((prev) => {
+      URL.revokeObjectURL(prev[idx].previewUrl);
+      return prev.filter((_, i) => i !== idx);
+    });
+  }
+
+  // ── Membership handlers ───────────────────────────────────
+  function openAddMembership() {
+    setEditingMembership(null);
+    setMembershipForm(EMPTY_MEMBERSHIP);
+    setMembershipErrors({});
+    setNewPerkInput("");
+    setMembershipDialogOpen(true);
+  }
+
+  function openEditMembership(m: StoreMembership) {
+    setEditingMembership(m);
+    setMembershipForm({
+      name: m.name,
+      description: m.description,
+      price: (Number(m.price) / 100).toFixed(2),
+      durationDays: m.durationDays.toString(),
+      perks: [...m.perks],
+      isActive: m.isActive,
+    });
+    setMembershipErrors({});
+    setNewPerkInput("");
+    setMembershipDialogOpen(true);
+  }
+
+  function validateMembershipForm() {
+    const e: Record<string, string> = {};
+    if (!membershipForm.name.trim()) e.name = "Name is required";
+    if (!membershipForm.description.trim())
+      e.description = "Description is required";
+    const price = Number.parseFloat(membershipForm.price);
+    if (Number.isNaN(price) || price < 0) e.price = "Valid price required";
+    const days = Number.parseInt(membershipForm.durationDays);
+    if (Number.isNaN(days) || days < 1)
+      e.durationDays = "Must be at least 1 day";
+    setMembershipErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  async function handleSaveMembership() {
+    if (!validateMembershipForm() || !store) return;
+    const priceCents = BigInt(
+      Math.round(Number.parseFloat(membershipForm.price) * 100),
+    );
+    const days = BigInt(Number.parseInt(membershipForm.durationDays));
+    try {
+      if (editingMembership) {
+        await updateMembership.mutateAsync({
+          membershipId: editingMembership.id,
+          storeId: store.id,
+          name: membershipForm.name.trim(),
+          description: membershipForm.description.trim(),
+          price: priceCents,
+          durationDays: days,
+          perks: membershipForm.perks,
+          isActive: membershipForm.isActive,
+        });
+        toast.success("Membership updated!");
+      } else {
+        await addMembership.mutateAsync({
+          storeId: store.id,
+          name: membershipForm.name.trim(),
+          description: membershipForm.description.trim(),
+          price: priceCents,
+          durationDays: days,
+          perks: membershipForm.perks,
+        });
+        toast.success("Membership created!");
+      }
+      setMembershipDialogOpen(false);
+    } catch {
+      toast.error("Failed to save membership");
+    }
+  }
+
+  async function handleDeleteMembership() {
+    if (!deleteMembershipId || !store) return;
+    try {
+      await deleteMembership.mutateAsync({
+        membershipId: deleteMembershipId,
+        storeId: store.id,
+      });
+      toast.success("Membership deleted");
+    } catch {
+      toast.error("Failed to delete membership");
+    } finally {
+      setDeleteMembershipId(null);
+    }
+  }
+
+  function addPerk() {
+    const trimmed = newPerkInput.trim();
+    if (!trimmed) return;
+    setMembershipForm((f) => ({ ...f, perks: [...f.perks, trimmed] }));
+    setNewPerkInput("");
+  }
+
+  function removePerk(idx: number) {
+    setMembershipForm((f) => ({
+      ...f,
+      perks: f.perks.filter((_, i) => i !== idx),
+    }));
+  }
+
+  // ── Order handlers ────────────────────────────────────────
   async function handleUpdateOrderStatus(order: Order, status: OrderStatus) {
     if (!store) return;
     try {
@@ -385,6 +628,7 @@ export default function DashboardPage() {
     }
   }
 
+  // ── Settings handlers ─────────────────────────────────────
   async function handleSaveSettings() {
     if (!store) return;
     if (!settingsName.trim()) {
@@ -403,6 +647,33 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleSavePaymentInfo() {
+    if (!store) return;
+    const enabledChannels: string[] = [];
+    if (paymentForm.paypalEnabled) enabledChannels.push("paypal");
+    if (paymentForm.bankEnabled) enabledChannels.push("bank");
+    if (paymentForm.stripeEnabled) enabledChannels.push("stripe");
+
+    const info: StorePaymentInfo = {
+      storeId: store.id,
+      enabledChannels,
+      paypalEmail: paymentForm.paypalEmail || undefined,
+      paypalUsername: paymentForm.paypalUsername || undefined,
+      bankName: paymentForm.bankName || undefined,
+      accountNumber: paymentForm.accountNumber || undefined,
+      sortCode: paymentForm.sortCode || undefined,
+      stripeAccountId: paymentForm.stripeAccountId || undefined,
+    };
+
+    try {
+      await savePaymentInfo.mutateAsync({ storeId: store.id, info });
+      toast.success("Payment settings saved!");
+    } catch {
+      toast.error("Failed to save payment settings");
+    }
+  }
+
+  // ── AI handlers ───────────────────────────────────────────
   async function sendAiMessage(preset?: string) {
     const text = (preset ?? aiInput).trim();
     if (!text || !store) return;
@@ -410,7 +681,7 @@ export default function DashboardPage() {
 
     setMessages((prev) => [...prev, { role: "user", content: text }]);
 
-    const storeCtx = `You are an AI assistant for "${store.name}", a store that sells: ${store.description}. Products: ${
+    const storeCtx = `You are Frost, the best AI for website building, powered by Frostify. You are helping the owner of "${store.name}", a store that sells: ${store.description}. Products: ${
       products
         ?.map((p) => `${p.name} at ${formatPrice(p.price)} (${p.category})`)
         .join(", ") || "not loaded yet"
@@ -468,7 +739,7 @@ export default function DashboardPage() {
             </h1>
             <p className="text-muted-foreground text-sm leading-relaxed mb-6">
               Your payment is being verified by our team. You'll get access
-              within 24 hours. Contact support if you have questions.
+              within 24 hours.
             </p>
             <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 mb-6 text-sm text-primary/80">
               <span className="font-semibold">Plan:</span> {subscription.plan}
@@ -503,7 +774,6 @@ export default function DashboardPage() {
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       {/* ── Sidebar ─────────────────────────────────────────── */}
-      {/* Mobile overlay */}
       <AnimatePresence>
         {sidebarOpen && (
           <motion.div
@@ -591,7 +861,11 @@ export default function DashboardPage() {
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 }`}
               >
-                <item.icon className="w-4 h-4 shrink-0" />
+                {item.id === "ai" ? (
+                  <item.icon className="w-4 h-4 shrink-0 text-blue-400" />
+                ) : (
+                  <item.icon className="w-4 h-4 shrink-0" />
+                )}
                 {item.label}
                 {item.id === "orders" &&
                   orders &&
@@ -643,7 +917,11 @@ export default function DashboardPage() {
             <Menu className="w-5 h-5" />
           </button>
           <div className="font-display font-bold text-base capitalize">
-            {activeTab === "ai" ? "AI Assistant" : activeTab}
+            {activeTab === "ai"
+              ? "Frost AI"
+              : activeTab === "memberships"
+                ? "Memberships"
+                : activeTab}
           </div>
           <div className="ml-auto flex items-center gap-2">
             {/* Currency Switcher */}
@@ -686,7 +964,6 @@ export default function DashboardPage() {
         </header>
 
         {/* Subscription Status Banners */}
-        {/* Expiring soon — amber warning */}
         {isSubscriptionExpiringSoon(subscription) && !expirySoonDismissed && (
           <Alert className="rounded-none border-x-0 border-t-0 bg-amber-500/10 border-amber-500/30 flex items-center">
             <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -695,9 +972,7 @@ export default function DashboardPage() {
               {getDaysUntilExpiry(subscription) !== 1 ? "s" : ""}.{" "}
               <button
                 type="button"
-                onClick={() => {
-                  setActiveTab("settings");
-                }}
+                onClick={() => setActiveTab("settings")}
                 className="underline hover:no-underline font-semibold"
               >
                 Renew now
@@ -714,7 +989,6 @@ export default function DashboardPage() {
             </button>
           </Alert>
         )}
-        {/* Active but not expiring soon — info reminder */}
         {isSubscriptionActive(subscription) &&
           !isSubscriptionExpiringSoon(subscription) &&
           !reminderDismissed && (
@@ -1050,6 +1324,146 @@ export default function DashboardPage() {
               </motion.div>
             )}
 
+            {/* ── Memberships ── */}
+            {activeTab === "memberships" && (
+              <motion.div
+                key="memberships"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-5"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="font-display text-xl font-black flex items-center gap-2">
+                      <Crown className="w-5 h-5 text-amber-500" />
+                      Store Memberships
+                    </h2>
+                    <p className="text-muted-foreground text-sm">
+                      Offer recurring memberships to your customers
+                    </p>
+                  </div>
+                  <Button
+                    onClick={openAddMembership}
+                    className="ai-gradient text-white border-0"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Membership
+                  </Button>
+                </div>
+
+                {membershipsLoading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-48 rounded-2xl" />
+                    ))}
+                  </div>
+                ) : !memberships || memberships.length === 0 ? (
+                  <div className="text-center py-16 bg-card border border-border rounded-2xl">
+                    <Crown className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                    <h3 className="font-display font-bold text-lg mb-1">
+                      No memberships yet
+                    </h3>
+                    <p className="text-muted-foreground text-sm mb-4">
+                      Create a membership plan to offer recurring access to your
+                      customers.
+                    </p>
+                    <Button
+                      onClick={openAddMembership}
+                      className="ai-gradient text-white border-0"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Your First Membership
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {memberships.map((membership) => (
+                      <motion.div
+                        key={membership.id.toString()}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-card border border-border rounded-2xl p-5 flex flex-col"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center">
+                              <Crown className="w-4 h-4 text-amber-500" />
+                            </div>
+                            <div>
+                              <div className="font-semibold text-sm leading-tight">
+                                {membership.name}
+                              </div>
+                              <Badge
+                                className={
+                                  membership.isActive
+                                    ? "text-xs bg-success/20 text-success border-success/30"
+                                    : "text-xs"
+                                }
+                                variant={
+                                  membership.isActive ? "default" : "secondary"
+                                }
+                              >
+                                {membership.isActive ? "Active" : "Inactive"}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => openEditMembership(membership)}
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={() =>
+                                setDeleteMembershipId(membership.id)
+                              }
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+                          {membership.description}
+                        </p>
+
+                        <div className="flex items-baseline gap-1 mb-3">
+                          <span className="font-display text-2xl font-black">
+                            {formatPrice(membership.price)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            / {Number(membership.durationDays)} days
+                          </span>
+                        </div>
+
+                        {membership.perks.length > 0 && (
+                          <ul className="space-y-1.5 mt-auto">
+                            {membership.perks.map((perk) => (
+                              <li
+                                key={perk}
+                                className="flex items-center gap-2 text-xs text-muted-foreground"
+                              >
+                                <Check className="w-3.5 h-3.5 text-success shrink-0" />
+                                {perk}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
             {/* ── Orders ── */}
             {activeTab === "orders" && (
               <motion.div
@@ -1170,7 +1584,6 @@ export default function DashboardPage() {
                 className="space-y-5"
               >
                 <h2 className="font-display text-xl font-black">Analytics</h2>
-
                 {analyticsLoading ? (
                   <div className="grid grid-cols-2 gap-4">
                     {[1, 2].map((i) => (
@@ -1264,7 +1677,7 @@ export default function DashboardPage() {
               </motion.div>
             )}
 
-            {/* ── AI Assistant ── */}
+            {/* ── Frost AI ── */}
             {activeTab === "ai" && (
               <motion.div
                 key="ai"
@@ -1275,18 +1688,36 @@ export default function DashboardPage() {
                 className="flex flex-col h-full"
                 style={{ height: "calc(100vh - 9rem)" }}
               >
-                {/* Header */}
+                {/* Frost AI Header */}
                 <div className="mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl ai-gradient flex items-center justify-center shadow-glow-sm">
-                      <Sparkles className="w-5 h-5 text-white" />
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shadow-glow-sm"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, oklch(0.55 0.22 240), oklch(0.65 0.18 200))",
+                      }}
+                    >
+                      <Snowflake className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h2 className="font-display text-xl font-black">
-                        AI Assistant
+                      <h2 className="font-display text-xl font-black flex items-center gap-2">
+                        Frost
+                        <span
+                          className="text-sm font-medium px-2 py-0.5 rounded-full"
+                          style={{
+                            background:
+                              "linear-gradient(135deg, oklch(0.55 0.22 240)/15%, oklch(0.65 0.18 200)/15%)",
+                            color: "oklch(0.65 0.18 200)",
+                            border: "1px solid oklch(0.65 0.18 200 / 0.3)",
+                          }}
+                        >
+                          AI
+                        </span>
                       </h2>
                       <p className="text-muted-foreground text-xs">
-                        Powered by advanced AI · knows your store
+                        The smartest AI for website building — powered by
+                        Frostify
                       </p>
                     </div>
                   </div>
@@ -1295,11 +1726,14 @@ export default function DashboardPage() {
                 {/* Quick Actions */}
                 <div className="flex flex-wrap gap-2 mb-4">
                   {[
-                    "Write a product description",
+                    "Help me build my homepage",
+                    "Suggest my website color palette",
+                    "Write product descriptions",
+                    "Tips to grow my online store",
+                    "How to get my first customer",
+                    "Write an About Us section",
                     "Suggest pricing strategy",
-                    "Write a store bio",
                     "Generate SEO keywords",
-                    "Tips to increase sales",
                   ].map((preset) => (
                     <button
                       type="button"
@@ -1318,16 +1752,23 @@ export default function DashboardPage() {
                   <ScrollArea className="flex-1 p-4">
                     {messages.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-12 text-center">
-                        <div className="w-16 h-16 rounded-2xl ai-gradient flex items-center justify-center mb-4 shadow-glow">
-                          <Bot className="w-8 h-8 text-white" />
+                        <div
+                          className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-glow"
+                          style={{
+                            background:
+                              "linear-gradient(135deg, oklch(0.55 0.22 240), oklch(0.65 0.18 200))",
+                          }}
+                        >
+                          <Snowflake className="w-8 h-8 text-white" />
                         </div>
                         <h3 className="font-display font-bold text-lg mb-2">
-                          Your AI Store Assistant
+                          Meet Frost
                         </h3>
                         <p className="text-muted-foreground text-sm max-w-xs">
-                          I can help you write product descriptions, optimize
-                          pricing, create marketing copy, and much more. Use the
-                          quick actions above or type your own question.
+                          The best AI for website building. I can help you craft
+                          your store, write compelling copy, optimize your
+                          products, and grow your business. Use the quick
+                          actions above or ask me anything.
                         </p>
                       </div>
                     ) : (
@@ -1339,8 +1780,14 @@ export default function DashboardPage() {
                             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                           >
                             {msg.role === "assistant" && (
-                              <div className="w-7 h-7 rounded-full ai-gradient flex items-center justify-center mr-2 shrink-0 mt-1">
-                                <Sparkles className="w-3.5 h-3.5 text-white" />
+                              <div
+                                className="w-7 h-7 rounded-full flex items-center justify-center mr-2 shrink-0 mt-1"
+                                style={{
+                                  background:
+                                    "linear-gradient(135deg, oklch(0.55 0.22 240), oklch(0.65 0.18 200))",
+                                }}
+                              >
+                                <Snowflake className="w-3.5 h-3.5 text-white" />
                               </div>
                             )}
                             <div
@@ -1367,8 +1814,14 @@ export default function DashboardPage() {
                         ))}
                         {aiAssist.isPending && (
                           <div className="flex justify-start">
-                            <div className="w-7 h-7 rounded-full ai-gradient flex items-center justify-center mr-2 shrink-0 mt-1">
-                              <Sparkles className="w-3.5 h-3.5 text-white" />
+                            <div
+                              className="w-7 h-7 rounded-full flex items-center justify-center mr-2 shrink-0 mt-1"
+                              style={{
+                                background:
+                                  "linear-gradient(135deg, oklch(0.55 0.22 240), oklch(0.65 0.18 200))",
+                              }}
+                            >
+                              <Snowflake className="w-3.5 h-3.5 text-white" />
                             </div>
                             <div className="bg-secondary px-4 py-3 rounded-2xl rounded-bl-sm">
                               <div className="flex gap-1 items-center h-4">
@@ -1401,14 +1854,18 @@ export default function DashboardPage() {
                       onKeyDown={(e) =>
                         e.key === "Enter" && !e.shiftKey && sendAiMessage()
                       }
-                      placeholder="Ask your AI assistant..."
+                      placeholder="Ask Frost anything about your store..."
                       className="h-10"
                       disabled={aiAssist.isPending}
                     />
                     <Button
                       onClick={() => sendAiMessage()}
                       disabled={!aiInput.trim() || aiAssist.isPending}
-                      className="h-10 px-4 ai-gradient text-white border-0 shrink-0"
+                      className="h-10 px-4 text-white border-0 shrink-0"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, oklch(0.55 0.22 240), oklch(0.65 0.18 200))",
+                      }}
                     >
                       {aiAssist.isPending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -1429,7 +1886,7 @@ export default function DashboardPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.2 }}
-                className="space-y-5 max-w-xl"
+                className="space-y-5 max-w-2xl"
               >
                 <h2 className="font-display text-xl font-black">
                   Store Settings
@@ -1467,7 +1924,6 @@ export default function DashboardPage() {
                             Active
                           </Badge>
                         )}
-                        {/* Note: pending only appears in settings if navigated directly; narrowed by TS after early return */}
                         {(subscription?.status as string) === "pending" && (
                           <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
                             Pending
@@ -1491,7 +1947,6 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* Renewal prompt — when expiring soon or already expired */}
                   {(isSubscriptionExpiringSoon(subscription) ||
                     isSubscriptionExpired(subscription)) && (
                     <motion.div
@@ -1543,7 +1998,6 @@ export default function DashboardPage() {
                     </motion.div>
                   )}
 
-                  {/* Manual renewal reminder for active non-expiring subscriptions */}
                   {isSubscriptionActive(subscription) &&
                     !isSubscriptionExpiringSoon(subscription) && (
                       <p className="text-xs text-muted-foreground flex items-start gap-1.5">
@@ -1554,6 +2008,7 @@ export default function DashboardPage() {
                     )}
                 </div>
 
+                {/* ── Store Identity Card ── */}
                 <div className="bg-card border border-border rounded-2xl p-6 space-y-5">
                   <div className="space-y-1.5">
                     <Label htmlFor="settings-name">Store Name</Label>
@@ -1623,6 +2078,254 @@ export default function DashboardPage() {
                   </Button>
                 </div>
 
+                {/* ── Payment Payouts Card ── */}
+                <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <CreditCard className="w-4 h-4 text-primary" />
+                      <h3 className="font-display font-bold text-sm">
+                        Payment Payouts
+                      </h3>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Where you receive payments from your customers. Enable the
+                      channels you accept.
+                    </p>
+                  </div>
+
+                  {/* PayPal */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                          <span className="text-sm font-bold text-blue-600">
+                            PP
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">PayPal</div>
+                          <div className="text-xs text-muted-foreground">
+                            Accept PayPal payments
+                          </div>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={paymentForm.paypalEnabled}
+                        onCheckedChange={(checked) =>
+                          setPaymentForm((f) => ({
+                            ...f,
+                            paypalEnabled: checked,
+                          }))
+                        }
+                      />
+                    </div>
+                    {paymentForm.paypalEnabled && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="pl-10 space-y-3"
+                      >
+                        <div className="space-y-1.5">
+                          <Label htmlFor="paypal-email">PayPal Email</Label>
+                          <Input
+                            id="paypal-email"
+                            type="email"
+                            placeholder="you@example.com"
+                            value={paymentForm.paypalEmail}
+                            onChange={(e) =>
+                              setPaymentForm((f) => ({
+                                ...f,
+                                paypalEmail: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="paypal-username">
+                            PayPal Username
+                          </Label>
+                          <Input
+                            id="paypal-username"
+                            placeholder="@yourname"
+                            value={paymentForm.paypalUsername}
+                            onChange={(e) =>
+                              setPaymentForm((f) => ({
+                                ...f,
+                                paypalUsername: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Bank Transfer */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                          <span className="text-sm font-bold text-emerald-600">
+                            BT
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">
+                            Bank Transfer
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Accept direct bank transfers
+                          </div>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={paymentForm.bankEnabled}
+                        onCheckedChange={(checked) =>
+                          setPaymentForm((f) => ({
+                            ...f,
+                            bankEnabled: checked,
+                          }))
+                        }
+                      />
+                    </div>
+                    {paymentForm.bankEnabled && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="pl-10 space-y-3"
+                      >
+                        <div className="space-y-1.5">
+                          <Label htmlFor="bank-name">Bank Name</Label>
+                          <Input
+                            id="bank-name"
+                            placeholder="e.g. Barclays"
+                            value={paymentForm.bankName}
+                            onChange={(e) =>
+                              setPaymentForm((f) => ({
+                                ...f,
+                                bankName: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="account-number">
+                              Account Number
+                            </Label>
+                            <Input
+                              id="account-number"
+                              placeholder="12345678"
+                              value={paymentForm.accountNumber}
+                              onChange={(e) =>
+                                setPaymentForm((f) => ({
+                                  ...f,
+                                  accountNumber: e.target.value,
+                                }))
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="sort-code">Sort Code</Label>
+                            <Input
+                              id="sort-code"
+                              placeholder="12-34-56"
+                              value={paymentForm.sortCode}
+                              onChange={(e) =>
+                                setPaymentForm((f) => ({
+                                  ...f,
+                                  sortCode: e.target.value,
+                                }))
+                              }
+                            />
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Stripe */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                          <span className="text-sm font-bold text-violet-600">
+                            St
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">Stripe</div>
+                          <div className="text-xs text-muted-foreground">
+                            Accept card payments via Stripe
+                          </div>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={paymentForm.stripeEnabled}
+                        onCheckedChange={(checked) =>
+                          setPaymentForm((f) => ({
+                            ...f,
+                            stripeEnabled: checked,
+                          }))
+                        }
+                      />
+                    </div>
+                    {paymentForm.stripeEnabled && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="pl-10 space-y-3"
+                      >
+                        <div className="space-y-1.5">
+                          <Label htmlFor="stripe-account">
+                            Stripe Account ID
+                          </Label>
+                          <Input
+                            id="stripe-account"
+                            placeholder="acct_..."
+                            value={paymentForm.stripeAccountId}
+                            onChange={(e) =>
+                              setPaymentForm((f) => ({
+                                ...f,
+                                stripeAccountId: e.target.value,
+                              }))
+                            }
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Found in your Stripe dashboard under Account
+                            Settings.
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  <Button
+                    onClick={handleSavePaymentInfo}
+                    disabled={savePaymentInfo.isPending}
+                    className="ai-gradient text-white border-0 w-full sm:w-auto"
+                  >
+                    {savePaymentInfo.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        Save Payment Settings
+                      </>
+                    )}
+                  </Button>
+                </div>
+
                 {/* Danger Zone */}
                 <div className="bg-card border border-destructive/30 rounded-2xl p-6 space-y-3">
                   <div className="flex items-center gap-2 mb-3">
@@ -1652,7 +2355,7 @@ export default function DashboardPage() {
 
       {/* ── Product Dialog ──────────────────────────────────── */}
       <Dialog open={productDialogOpen} onOpenChange={setProductDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display">
               {editingProduct ? "Edit Product" : "Add New Product"}
@@ -1767,6 +2470,69 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
+
+            {/* Media Upload */}
+            <div className="space-y-2">
+              <Label>Media (Images &amp; Videos)</Label>
+              <button
+                type="button"
+                className="w-full border-2 border-dashed border-border rounded-xl p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                onClick={() => mediaInputRef.current?.click()}
+              >
+                <ImagePlus className="w-6 h-6 text-muted-foreground/50 mx-auto mb-1" />
+                <p className="text-xs text-muted-foreground">
+                  Click to upload images or videos
+                </p>
+                <p className="text-xs text-muted-foreground/60 mt-0.5">
+                  PNG, JPG, GIF, MP4, WebM supported
+                </p>
+              </button>
+              <input
+                ref={mediaInputRef}
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                className="hidden"
+                onChange={handleMediaFileChange}
+              />
+              {mediaPreviews.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  {mediaPreviews.map((preview, idx) => (
+                    <div
+                      key={preview.previewUrl}
+                      className="relative group rounded-lg overflow-hidden bg-muted aspect-square"
+                    >
+                      {preview.file.type.startsWith("video/") ? (
+                        <video
+                          src={preview.previewUrl}
+                          className="w-full h-full object-cover"
+                          muted
+                        />
+                      ) : (
+                        <img
+                          src={preview.previewUrl}
+                          alt={preview.file.name}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeMediaPreview(idx);
+                        }}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                      <div className="absolute bottom-1 left-1 right-1 text-xs text-white bg-black/50 rounded px-1 truncate">
+                        {preview.file.name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -1795,7 +2561,204 @@ export default function DashboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Delete Confirmation ─────────────────────────────── */}
+      {/* ── Membership Dialog ───────────────────────────────── */}
+      <Dialog
+        open={membershipDialogOpen}
+        onOpenChange={setMembershipDialogOpen}
+      >
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <Crown className="w-4 h-4 text-amber-500" />
+              {editingMembership ? "Edit Membership" : "Create Membership"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="m-name">Membership Name</Label>
+              <Input
+                id="m-name"
+                value={membershipForm.name}
+                onChange={(e) =>
+                  setMembershipForm((f) => ({ ...f, name: e.target.value }))
+                }
+                placeholder="e.g. VIP Member, Pro Plan"
+                className={membershipErrors.name ? "border-destructive" : ""}
+              />
+              {membershipErrors.name && (
+                <p className="text-xs text-destructive">
+                  {membershipErrors.name}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="m-desc">Description</Label>
+              <Textarea
+                id="m-desc"
+                value={membershipForm.description}
+                onChange={(e) =>
+                  setMembershipForm((f) => ({
+                    ...f,
+                    description: e.target.value,
+                  }))
+                }
+                placeholder="Describe what members get..."
+                rows={3}
+                className={
+                  membershipErrors.description ? "border-destructive" : ""
+                }
+              />
+              {membershipErrors.description && (
+                <p className="text-xs text-destructive">
+                  {membershipErrors.description}
+                </p>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="m-price">Price (USD)</Label>
+                <Input
+                  id="m-price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={membershipForm.price}
+                  onChange={(e) =>
+                    setMembershipForm((f) => ({ ...f, price: e.target.value }))
+                  }
+                  placeholder="9.99"
+                  className={membershipErrors.price ? "border-destructive" : ""}
+                />
+                {membershipErrors.price && (
+                  <p className="text-xs text-destructive">
+                    {membershipErrors.price}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="m-duration">Duration (days)</Label>
+                <Input
+                  id="m-duration"
+                  type="number"
+                  min="1"
+                  value={membershipForm.durationDays}
+                  onChange={(e) =>
+                    setMembershipForm((f) => ({
+                      ...f,
+                      durationDays: e.target.value,
+                    }))
+                  }
+                  placeholder="30"
+                  className={
+                    membershipErrors.durationDays ? "border-destructive" : ""
+                  }
+                />
+                {membershipErrors.durationDays ? (
+                  <p className="text-xs text-destructive">
+                    {membershipErrors.durationDays}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    30 = monthly, 365 = yearly
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Perks */}
+            <div className="space-y-2">
+              <Label>Perks / Benefits</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Add a perk (e.g. Free shipping)"
+                  value={newPerkInput}
+                  onChange={(e) => setNewPerkInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addPerk();
+                    }
+                  }}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addPerk}
+                  disabled={!newPerkInput.trim()}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {membershipForm.perks.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {membershipForm.perks.map((perk, idx) => (
+                    <span
+                      key={perk}
+                      className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground text-xs px-2.5 py-1 rounded-full"
+                    >
+                      <Check className="w-3 h-3 text-success" />
+                      {perk}
+                      <button
+                        type="button"
+                        onClick={() => removePerk(idx)}
+                        className="ml-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Active toggle (edit only) */}
+            {editingMembership && (
+              <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-xl">
+                <div>
+                  <div className="text-sm font-medium">Active</div>
+                  <div className="text-xs text-muted-foreground">
+                    Show this membership on your storefront
+                  </div>
+                </div>
+                <Switch
+                  checked={membershipForm.isActive}
+                  onCheckedChange={(checked) =>
+                    setMembershipForm((f) => ({ ...f, isActive: checked }))
+                  }
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setMembershipDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveMembership}
+              disabled={addMembership.isPending || updateMembership.isPending}
+              className="ai-gradient text-white border-0"
+            >
+              {addMembership.isPending || updateMembership.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : editingMembership ? (
+                "Save Changes"
+              ) : (
+                "Create Membership"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Product Confirmation ──────────────────────── */}
       <AlertDialog
         open={deleteConfirmId !== null}
         onOpenChange={(o) => !o && setDeleteConfirmId(null)}
@@ -1812,6 +2775,31 @@ export default function DashboardPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteProduct}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Delete Membership Confirmation ──────────────────── */}
+      <AlertDialog
+        open={deleteMembershipId !== null}
+        onOpenChange={(o) => !o && setDeleteMembershipId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Membership</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure? This will permanently delete this membership plan.
+              Existing subscribers may be affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteMembership}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete

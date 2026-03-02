@@ -9,7 +9,11 @@ import { Link, useParams } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Bot,
+  Building2,
+  Check,
   CheckCircle,
+  CreditCard,
+  Crown,
   Home,
   Loader2,
   Minus,
@@ -28,8 +32,10 @@ import { useCurrency } from "../hooks/useCurrency";
 import {
   useActiveProductsByStore,
   useAiAssist,
+  useMembershipsByStore,
   usePlaceOrder,
   useStoreBySlug,
+  useStorePaymentInfo,
 } from "../hooks/useQueries";
 
 interface CartItem {
@@ -116,9 +122,13 @@ export default function StorefrontPage() {
   const { data: store, isLoading: storeLoading } = useStoreBySlug(slug);
   const { data: products, isLoading: productsLoading } =
     useActiveProductsByStore(store?.id);
+  const { data: memberships } = useMembershipsByStore(store?.id);
+  const { data: paymentInfo } = useStorePaymentInfo(store?.id);
   const placeOrder = usePlaceOrder();
   const aiAssist = useAiAssist();
   const { currency, setCurrency, formatPrice } = useCurrency();
+
+  const activeMemberships = memberships?.filter((m) => m.isActive) ?? [];
 
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -360,46 +370,189 @@ export default function StorefrontPage() {
       </div>
 
       {/* Products */}
-      <main className="container mx-auto px-4 py-10">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-display text-2xl font-bold">
-            Products
-            {products && (
-              <Badge variant="secondary" className="ml-2 text-sm font-normal">
-                {products.length}
-              </Badge>
-            )}
-          </h2>
-        </div>
+      <main className="container mx-auto px-4 py-10 space-y-16">
+        {/* Products Section */}
+        <section>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="font-display text-2xl font-bold">
+              Products
+              {products && (
+                <Badge variant="secondary" className="ml-2 text-sm font-normal">
+                  {products.length}
+                </Badge>
+              )}
+            </h2>
+          </div>
 
-        {productsLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {Array.from({ length: 6 }, (_, i) => `sk-${i}`).map((k) => (
-              <div key={k} className="space-y-3">
-                <Skeleton className="aspect-square rounded-xl" />
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
+          {productsLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {Array.from({ length: 6 }, (_, i) => `sk-${i}`).map((k) => (
+                <div key={k} className="space-y-3">
+                  <Skeleton className="aspect-square rounded-xl" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : !products || products.length === 0 ? (
+            <div className="text-center py-16">
+              <Package className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-muted-foreground">
+                No products available yet. Check back soon!
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {products.map((product) => (
+                <ProductCard
+                  key={product.id.toString()}
+                  product={product}
+                  onAdd={addToCart}
+                  formatPrice={formatPrice}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Memberships Section */}
+        {activeMemberships.length > 0 && (
+          <section>
+            <div className="mb-8 text-center">
+              <div className="inline-flex items-center gap-2 mb-3">
+                <Crown className="w-5 h-5 text-amber-500" />
+                <h2 className="font-display text-2xl font-bold">Memberships</h2>
               </div>
-            ))}
-          </div>
-        ) : !products || products.length === 0 ? (
-          <div className="text-center py-16">
-            <Package className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-muted-foreground">
-              No products available yet. Check back soon!
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {products.map((product) => (
-              <ProductCard
-                key={product.id.toString()}
-                product={product}
-                onAdd={addToCart}
-                formatPrice={formatPrice}
-              />
-            ))}
-          </div>
+              <p className="text-muted-foreground">
+                Become a member and enjoy exclusive benefits
+              </p>
+            </div>
+
+            <div
+              className={`grid gap-6 ${activeMemberships.length === 1 ? "max-w-sm mx-auto" : activeMemberships.length === 2 ? "grid-cols-1 md:grid-cols-2 max-w-2xl mx-auto" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"}`}
+            >
+              {activeMemberships.map((membership, idx) => (
+                <motion.div
+                  key={membership.id.toString()}
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.1, duration: 0.4 }}
+                  className={`relative bg-card border rounded-2xl p-6 flex flex-col ${
+                    idx === 0 && activeMemberships.length > 1
+                      ? "border-primary/40 shadow-glow-sm"
+                      : "border-border"
+                  }`}
+                >
+                  {idx === 0 && activeMemberships.length > 1 && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <Badge className="ai-gradient text-white border-0 text-xs shadow-sm">
+                        ⭐ Most Popular
+                      </Badge>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center">
+                      <Crown className="w-5 h-5 text-amber-500" />
+                    </div>
+                    <h3 className="font-display font-bold text-lg">
+                      {membership.name}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-baseline gap-1 mb-3">
+                    <span className="font-display text-3xl font-black">
+                      {formatPrice(membership.price)}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      / {Number(membership.durationDays)} days
+                    </span>
+                  </div>
+
+                  <p className="text-sm text-muted-foreground mb-5">
+                    {membership.description}
+                  </p>
+
+                  {membership.perks.length > 0 && (
+                    <ul className="space-y-2.5 mb-6 flex-1">
+                      {membership.perks.map((perk) => (
+                        <li
+                          key={perk}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <div className="w-5 h-5 rounded-full bg-success/15 flex items-center justify-center shrink-0">
+                            <Check className="w-3 h-3 text-success" />
+                          </div>
+                          {perk}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <Button
+                    className="w-full mt-auto ai-gradient text-white border-0"
+                    onClick={() =>
+                      toast.info(
+                        "Contact the store owner to purchase this membership.",
+                      )
+                    }
+                  >
+                    <Crown className="w-4 h-4 mr-2" />
+                    Get Membership
+                  </Button>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Payment Methods Section */}
+        {paymentInfo && paymentInfo.enabledChannels.length > 0 && (
+          <section>
+            <div className="bg-card border border-border rounded-2xl p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <CreditCard className="w-4 h-4 text-muted-foreground" />
+                <h3 className="font-display font-semibold text-base">
+                  Payment Methods Accepted
+                </h3>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {paymentInfo.enabledChannels.includes("paypal") && (
+                  <div className="flex items-center gap-2 bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20 px-3 py-2 rounded-xl text-sm font-medium">
+                    <span className="font-bold text-xs bg-blue-500 text-white rounded px-1.5 py-0.5">
+                      PP
+                    </span>
+                    PayPal
+                    {paymentInfo.paypalEmail && (
+                      <span className="text-xs text-blue-500/70">
+                        {paymentInfo.paypalEmail}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {paymentInfo.enabledChannels.includes("bank") && (
+                  <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 px-3 py-2 rounded-xl text-sm font-medium">
+                    <Building2 className="w-4 h-4" />
+                    Bank Transfer
+                    {paymentInfo.bankName && (
+                      <span className="text-xs text-emerald-500/70">
+                        {paymentInfo.bankName}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {paymentInfo.enabledChannels.includes("stripe") && (
+                  <div className="flex items-center gap-2 bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-500/20 px-3 py-2 rounded-xl text-sm font-medium">
+                    <span className="font-bold text-xs bg-violet-500 text-white rounded px-1.5 py-0.5">
+                      St
+                    </span>
+                    Stripe
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
         )}
       </main>
 

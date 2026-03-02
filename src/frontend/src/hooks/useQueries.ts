@@ -6,6 +6,8 @@ import type {
   Product,
   Store,
   StoreAnalytics,
+  StoreMembership,
+  StorePaymentInfo,
   UserProfile,
 } from "../backend.d.ts";
 import { useActor } from "./useActor";
@@ -235,6 +237,7 @@ export function useUpdateProduct() {
       description,
       price,
       stock,
+      mediaIds,
     }: {
       productId: bigint;
       storeId: bigint;
@@ -242,9 +245,17 @@ export function useUpdateProduct() {
       description: string;
       price: bigint;
       stock: bigint;
+      mediaIds?: Array<Uint8Array> | null;
     }) => {
       if (!actor) throw new Error("Not authenticated");
-      return actor.updateProduct(productId, name, description, price, stock);
+      return actor.updateProduct(
+        productId,
+        name,
+        description,
+        price,
+        stock,
+        mediaIds ?? null,
+      );
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({
@@ -334,7 +345,161 @@ export function useAiAssist() {
       prompt: string;
     }) => {
       if (!actor) throw new Error("Not authenticated");
-      return actor.aiAssist(context, prompt);
+      return (
+        actor as unknown as Record<
+          string,
+          (...args: unknown[]) => Promise<string>
+        >
+      ).aiAssist(context, prompt);
+    },
+  });
+}
+
+// ── Store Memberships ─────────────────────────────────────────
+
+export function useMembershipsByStore(storeId: bigint | undefined) {
+  const { actor, isFetching } = useActor();
+  return useQuery<StoreMembership[]>({
+    queryKey: ["memberships", storeId?.toString()],
+    queryFn: async () => {
+      if (!actor || storeId === undefined) return [];
+      return actor.listMembershipsByStore(storeId);
+    },
+    enabled: !!actor && !isFetching && storeId !== undefined,
+  });
+}
+
+export function useAddStoreMembership() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      storeId,
+      name,
+      description,
+      price,
+      durationDays,
+      perks,
+    }: {
+      storeId: bigint;
+      name: string;
+      description: string;
+      price: bigint;
+      durationDays: bigint;
+      perks: Array<string>;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.addStoreMembership(
+        storeId,
+        name,
+        description,
+        price,
+        durationDays,
+        perks,
+      );
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["memberships", vars.storeId.toString()],
+      });
+    },
+  });
+}
+
+export function useUpdateStoreMembership() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      membershipId,
+      name,
+      description,
+      price,
+      durationDays,
+      perks,
+      isActive,
+    }: {
+      membershipId: bigint;
+      storeId: bigint;
+      name: string;
+      description: string;
+      price: bigint;
+      durationDays: bigint;
+      perks: Array<string>;
+      isActive: boolean;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.updateStoreMembership(
+        membershipId,
+        name,
+        description,
+        price,
+        durationDays,
+        perks,
+        isActive,
+      );
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["memberships", vars.storeId.toString()],
+      });
+    },
+  });
+}
+
+export function useDeleteStoreMembership() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      membershipId,
+    }: {
+      membershipId: bigint;
+      storeId: bigint;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.deleteStoreMembership(membershipId);
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["memberships", vars.storeId.toString()],
+      });
+    },
+  });
+}
+
+// ── Store Payment Info ────────────────────────────────────────
+
+export function useStorePaymentInfo(storeId: bigint | undefined) {
+  const { actor, isFetching } = useActor();
+  return useQuery<StorePaymentInfo | null>({
+    queryKey: ["paymentInfo", storeId?.toString()],
+    queryFn: async () => {
+      if (!actor || storeId === undefined) return null;
+      return actor.getStorePaymentInfo(storeId);
+    },
+    enabled: !!actor && !isFetching && storeId !== undefined,
+  });
+}
+
+export function useSaveStorePaymentInfo() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      storeId,
+      info,
+    }: {
+      storeId: bigint;
+      info: StorePaymentInfo;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.saveStorePaymentInfo(storeId, info);
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["paymentInfo", vars.storeId.toString()],
+      });
     },
   });
 }

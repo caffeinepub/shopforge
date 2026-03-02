@@ -37,6 +37,7 @@ export interface Product {
   'createdAt' : Time,
   'description' : string,
   'isActive' : boolean,
+  'mediaIds' : [] | [Array<Uint8Array>],
   'stock' : bigint,
   'category' : string,
   'imageId' : [] | [Uint8Array],
@@ -56,6 +57,27 @@ export interface StoreAnalytics {
   'totalOrders' : bigint,
   'topProducts' : Array<[bigint, string, bigint]>,
   'totalRevenue' : bigint,
+}
+export interface StoreMembership {
+  'id' : bigint,
+  'durationDays' : bigint,
+  'storeId' : bigint,
+  'name' : string,
+  'createdAt' : Time,
+  'description' : string,
+  'isActive' : boolean,
+  'perks' : Array<string>,
+  'price' : bigint,
+}
+export interface StorePaymentInfo {
+  'stripeAccountId' : [] | [string],
+  'storeId' : bigint,
+  'sortCode' : [] | [string],
+  'bankName' : [] | [string],
+  'accountNumber' : [] | [string],
+  'paypalUsername' : [] | [string],
+  'paypalEmail' : [] | [string],
+  'enabledChannels' : Array<string>,
 }
 export type Time = bigint;
 export interface UserProfile { 'name' : string }
@@ -94,11 +116,15 @@ export interface _SERVICE {
     [bigint, string, string, bigint, bigint, string],
     bigint
   >,
-  'aiAssist' : ActorMethod<[string, string], string>,
+  'addStoreMembership' : ActorMethod<
+    [bigint, string, string, bigint, bigint, Array<string>],
+    bigint
+  >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'createStore' : ActorMethod<[string, string, string], bigint>,
   'deleteProduct' : ActorMethod<[bigint], undefined>,
   'deleteStore' : ActorMethod<[bigint], undefined>,
+  'deleteStoreMembership' : ActorMethod<[bigint], undefined>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getMyStore' : ActorMethod<[], Store>,
@@ -107,10 +133,13 @@ export interface _SERVICE {
   'getStore' : ActorMethod<[bigint], Store>,
   'getStoreAnalytics' : ActorMethod<[bigint], StoreAnalytics>,
   'getStoreBySlug' : ActorMethod<[string], Store>,
+  'getStoreMembership' : ActorMethod<[bigint], StoreMembership>,
+  'getStorePaymentInfo' : ActorMethod<[bigint], [] | [StorePaymentInfo]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'listActiveProductsByStore' : ActorMethod<[bigint], Array<Product>>,
   'listAllStores' : ActorMethod<[], Array<Store>>,
+  'listMembershipsByStore' : ActorMethod<[bigint], Array<StoreMembership>>,
   'listMyOrders' : ActorMethod<[], Array<Order>>,
   'listOrdersByStore' : ActorMethod<[bigint], Array<Order>>,
   'listProductsByStore' : ActorMethod<[bigint], Array<Product>>,
@@ -119,12 +148,17 @@ export interface _SERVICE {
     bigint
   >,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'saveStorePaymentInfo' : ActorMethod<[bigint, StorePaymentInfo], undefined>,
   'updateOrderStatus' : ActorMethod<[bigint, OrderStatus], undefined>,
   'updateProduct' : ActorMethod<
-    [bigint, string, string, bigint, bigint],
+    [bigint, string, string, bigint, bigint, [] | [Array<Uint8Array>]],
     undefined
   >,
   'updateStore' : ActorMethod<[bigint, string, string], undefined>,
+  'updateStoreMembership' : ActorMethod<
+    [bigint, string, string, bigint, bigint, Array<string>, boolean],
+    undefined
+  >,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

@@ -1,32 +1,28 @@
+import Map "mo:core/Map";
 import Array "mo:core/Array";
+import Text "mo:core/Text";
+import Nat "mo:core/Nat";
+import Time "mo:core/Time";
+import Runtime "mo:core/Runtime";
+import Principal "mo:core/Principal";
 import Blob "mo:core/Blob";
 import List "mo:core/List";
-import Iter "mo:core/Iter";
-import Map "mo:core/Map";
-import Time "mo:core/Time";
-import Order "mo:core/Order";
-import Runtime "mo:core/Runtime";
-import Nat "mo:core/Nat";
-import Text "mo:core/Text";
-import Debug "mo:core/Debug";
-import Option "mo:core/Option";
-import Principal "mo:core/Principal";
-import Storage "blob-storage/Storage";
-import MixinStorage "blob-storage/Mixin";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
+import MixinStorage "blob-storage/Mixin";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
   include MixinStorage();
 
-  // User Profile Type
   public type UserProfile = {
     name : Text;
   };
 
-  type Store = {
+  public type Store = {
     id : Nat;
     ownerId : Principal;
     name : Text;
@@ -37,7 +33,19 @@ actor {
     createdAt : Time.Time;
   };
 
-  type Product = {
+  public type StoreMembership = {
+    id : Nat;
+    storeId : Nat;
+    name : Text;
+    description : Text;
+    price : Nat;
+    durationDays : Nat;
+    perks : [Text];
+    isActive : Bool;
+    createdAt : Time.Time;
+  };
+
+  public type Product = {
     id : Nat;
     storeId : Nat;
     name : Text;
@@ -46,11 +54,12 @@ actor {
     stock : Nat;
     category : Text;
     imageId : ?Blob;
+    mediaIds : ?[Blob];
     isActive : Bool;
     createdAt : Time.Time;
   };
 
-  type Order = {
+  public type Order = {
     id : Nat;
     storeId : Nat;
     buyerName : Text;
@@ -62,47 +71,48 @@ actor {
     createdAt : Time.Time;
   };
 
-  type OrderItem = {
+  public type OrderItem = {
     productId : Nat;
     productName : Text;
     quantity : Nat;
     unitPrice : Nat;
   };
 
-  type OrderStatus = {
+  public type OrderStatus = {
     #pending;
     #fulfilled;
     #cancelled;
   };
 
-  type StoreAnalytics = {
+  public type StoreAnalytics = {
     totalOrders : Nat;
     totalRevenue : Nat;
-    topProducts : [(Nat, Text, Nat)]; // (productId, productName, quantitySold)
+    topProducts : [(Nat, Text, Nat)];
   };
 
-  module Store {
-    public func compare(store1 : Store, store2 : Store) : Order.Order {
-      Nat.compare(store1.id, store2.id);
-    };
-  };
-
-  module Product {
-    public func compare(product1 : Product, product2 : Product) : Order.Order {
-      Nat.compare(product1.id, product2.id);
-    };
+  public type StorePaymentInfo = {
+    storeId : Nat;
+    paypalEmail : ?Text;
+    paypalUsername : ?Text;
+    bankName : ?Text;
+    accountNumber : ?Text;
+    sortCode : ?Text;
+    stripeAccountId : ?Text;
+    enabledChannels : [Text];
   };
 
   var storeIdCounter = 0;
   var productIdCounter = 0;
   var orderIdCounter = 0;
+  var membershipIdCounter = 0;
 
   let stores = Map.empty<Nat, Store>();
   let products = Map.empty<Nat, Product>();
   let orders = Map.empty<Nat, Order>();
   let userProfiles = Map.empty<Principal, UserProfile>();
+  let memberships = Map.empty<Nat, StoreMembership>();
+  let storePaymentInfos = Map.empty<Nat, StorePaymentInfo>();
 
-  // User Profile Functions
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view profiles");
@@ -124,7 +134,6 @@ actor {
     userProfiles.add(caller, profile);
   };
 
-  // Store Management
   public shared ({ caller }) func createStore(name : Text, slug : Text, description : Text) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can create stores");
@@ -172,12 +181,10 @@ actor {
   };
 
   public query ({ caller }) func getStore(storeId : Nat) : async Store {
-    // Anyone can view stores (including guests)
     getStoreInternal(storeId);
   };
 
   public query ({ caller }) func getStoreBySlug(slug : Text) : async Store {
-    // Anyone can view stores (including guests)
     switch (stores.values().toArray().find(func(store : Store) : Bool { store.slug == slug })) {
       case (?store) { store };
       case (null) { Runtime.trap("Store not found") };
@@ -195,8 +202,7 @@ actor {
   };
 
   public query ({ caller }) func listAllStores() : async [Store] {
-    // Anyone can view stores (including guests)
-    stores.values().toArray().sort();
+    stores.values().toArray();
   };
 
   public shared ({ caller }) func deleteStore(storeId : Nat) : async () {
@@ -208,7 +214,91 @@ actor {
     stores.remove(storeId);
   };
 
-  // Product Management
+  public shared ({ caller }) func addStoreMembership(storeId : Nat, name : Text, description : Text, price : Nat, durationDays : Nat, perks : [Text]) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can add memberships");
+    };
+    let store = getStoreInternal(storeId);
+    assertStoreOwner(store.ownerId, caller);
+
+    let membershipId = membershipIdCounter;
+    membershipIdCounter += 1;
+
+    let membership : StoreMembership = {
+      id = membershipId;
+      storeId;
+      name;
+      description;
+      price;
+      durationDays;
+      perks;
+      isActive = true;
+      createdAt = Time.now();
+    };
+
+    memberships.add(membershipId, membership);
+    membershipId;
+  };
+
+  public shared ({ caller }) func updateStoreMembership(membershipId : Nat, name : Text, description : Text, price : Nat, durationDays : Nat, perks : [Text], isActive : Bool) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can update memberships");
+    };
+    let membership = getMembershipInternal(membershipId);
+    let store = getStoreInternal(membership.storeId);
+    assertStoreOwner(store.ownerId, caller);
+
+    let updatedMembership : StoreMembership = {
+      membership with
+      name;
+      description;
+      price;
+      durationDays;
+      perks;
+      isActive;
+    };
+
+    memberships.add(membershipId, updatedMembership);
+  };
+
+  public shared ({ caller }) func deleteStoreMembership(membershipId : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can delete memberships");
+    };
+    let membership = getMembershipInternal(membershipId);
+    let store = getStoreInternal(membership.storeId);
+    assertStoreOwner(store.ownerId, caller);
+    memberships.remove(membershipId);
+  };
+
+  public query ({ caller }) func getStoreMembership(membershipId : Nat) : async StoreMembership {
+    getMembershipInternal(membershipId);
+  };
+
+  public query ({ caller }) func listMembershipsByStore(storeId : Nat) : async [StoreMembership] {
+    memberships.values().toArray().filter(func(m) { m.storeId == storeId });
+  };
+
+  func getMembershipInternal(membershipId : Nat) : StoreMembership {
+    switch (memberships.get(membershipId)) {
+      case (?membership) { membership };
+      case (null) { Runtime.trap("Membership not found") };
+    };
+  };
+
+  public shared ({ caller }) func saveStorePaymentInfo(storeId : Nat, info : StorePaymentInfo) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can save payment info");
+    };
+    let store = getStoreInternal(storeId);
+    assertStoreOwner(store.ownerId, caller);
+    storePaymentInfos.add(storeId, info);
+  };
+
+  public query ({ caller }) func getStorePaymentInfo(storeId : Nat) : async ?StorePaymentInfo {
+    storePaymentInfos.get(storeId);
+  };
+
   public shared ({ caller }) func addProduct(storeId : Nat, name : Text, description : Text, price : Nat, stock : Nat, category : Text) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can add products");
@@ -229,6 +319,7 @@ actor {
       stock;
       category;
       imageId = null;
+      mediaIds = null;
       isActive = true;
       createdAt = currentTime;
     };
@@ -237,7 +328,7 @@ actor {
     productId;
   };
 
-  public shared ({ caller }) func updateProduct(productId : Nat, name : Text, description : Text, price : Nat, stock : Nat) : async () {
+  public shared ({ caller }) func updateProduct(productId : Nat, name : Text, description : Text, price : Nat, stock : Nat, mediaIds : ?[Blob]) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can update products");
     };
@@ -251,6 +342,7 @@ actor {
       description;
       price;
       stock;
+      mediaIds;
     };
 
     products.add(productId, updatedProduct);
@@ -263,31 +355,23 @@ actor {
     let product = getProductInternal(productId);
     let store = getStoreInternal(product.storeId);
     assertStoreOwner(store.ownerId, caller);
-
     products.remove(productId);
   };
 
   public query ({ caller }) func getProduct(productId : Nat) : async Product {
-    // Anyone can view products (including guests)
     getProductInternal(productId);
   };
 
   public query ({ caller }) func listProductsByStore(storeId : Nat) : async [Product] {
-    // Anyone can view products (including guests)
     getProductsByStore(storeId);
   };
 
   public query ({ caller }) func listActiveProductsByStore(storeId : Nat) : async [Product] {
-    // Anyone can view active products (including guests)
     getProductsByStore(storeId).filter(func(p : Product) : Bool { p.isActive });
   };
 
-  // Order Management
   public shared ({ caller }) func placeOrder(storeId : Nat, buyerName : Text, buyerEmail : Text, items : [OrderItem]) : async Nat {
-    // Anyone can place orders (including guests)
     let store = getStoreInternal(storeId);
-    
-    // Validate products and calculate total
     var totalPrice : Nat = 0;
     for (item in items.vals()) {
       let product = getProductInternal(item.productId);
@@ -323,7 +407,6 @@ actor {
 
     orders.add(orderId, order);
 
-    // Update product stock
     for (item in items.vals()) {
       let product = getProductInternal(item.productId);
       let updatedProduct : Product = {
@@ -358,15 +441,13 @@ actor {
     };
     let order = getOrderInternal(orderId);
     let store = getStoreInternal(order.storeId);
-    
-    // Only store owner can view the order
     assertStoreOwner(store.ownerId, caller);
     order;
   };
 
   public query ({ caller }) func listOrdersByStore(storeId : Nat) : async [Order] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view store orders");
+      Runtime.trap("Unauthorized: Only users can list orders");
     };
     let store = getStoreInternal(storeId);
     assertStoreOwner(store.ownerId, caller);
@@ -376,7 +457,7 @@ actor {
 
   public query ({ caller }) func listMyOrders() : async [Order] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view their orders");
+      Runtime.trap("Unauthorized: Only users can list their orders");
     };
     orders.values().toArray().filter(func(order : Order) : Bool {
       switch (order.buyerPrincipal) {
@@ -386,7 +467,6 @@ actor {
     });
   };
 
-  // Analytics
   public query ({ caller }) func getStoreAnalytics(storeId : Nat) : async StoreAnalytics {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view analytics");
@@ -395,7 +475,7 @@ actor {
     assertStoreOwner(store.ownerId, caller);
 
     let storeOrders = orders.values().toArray().filter(func(order : Order) : Bool { order.storeId == storeId });
-    
+
     var totalOrders : Nat = storeOrders.size();
     var totalRevenue : Nat = 0;
     let productSales = Map.empty<Nat, (Text, Nat)>();
@@ -415,17 +495,18 @@ actor {
       };
     };
 
-    // Get top 5 products
     let salesArray = productSales.entries().toArray();
-    let sortedSales = salesArray.sort(func(a : (Nat, (Text, Nat)), b : (Nat, (Text, Nat))) : Order.Order {
-      let (_, (_, qtyA)) = a;
-      let (_, (_, qtyB)) = b;
-      Nat.compare(qtyB, qtyA); // Descending order
-    });
+    let sortedSales = salesArray.sort(
+      func(a, b) {
+        let (_, (_, qtyA)) = a;
+        let (_, (_, qtyB)) = b;
+        Nat.compare(qtyB, qtyA);
+      }
+    );
 
-    let topProducts = Array.tabulate<(Nat, Text, Nat)>(
+    let topProducts = Array.tabulate(
       Nat.min(5, sortedSales.size()),
-      func(i : Nat) : (Nat, Text, Nat) {
+      func(i) {
         let (productId, (name, qty)) = sortedSales[i];
         (productId, name, qty);
       }
@@ -438,17 +519,6 @@ actor {
     };
   };
 
-  // AI Assistant
-  public shared ({ caller }) func aiAssist(context : Text, userPrompt : Text) : async Text {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can use AI assistant");
-    };
-    // This would make an HTTP outcall to an AI API in a real implementation
-    Debug.print("AI call not implemented. This would be implemented via HTTP outcalls.");
-    "AI response for: " # userPrompt # " with context " # context;
-  };
-
-  // Helper Functions
   func assertStoreOwner(ownerId : Principal, caller : Principal) {
     if (ownerId != caller) {
       Runtime.trap("Unauthorized: Only store owner can perform this action");
