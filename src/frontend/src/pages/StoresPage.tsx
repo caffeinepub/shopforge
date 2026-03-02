@@ -164,16 +164,24 @@ export default function StoresPage() {
       </main>
 
       <footer className="border-t border-border mt-16 py-8">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()}. Built with ♥ using{" "}
-          <a
-            href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline"
+        <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-center gap-4 text-sm text-muted-foreground">
+          <span>
+            © {new Date().getFullYear()}. Built with ♥ using{" "}
+            <a
+              href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              caffeine.ai
+            </a>
+          </span>
+          <Link
+            to="/staff"
+            className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
           >
-            caffeine.ai
-          </a>
+            Staff
+          </Link>
         </div>
       </footer>
     </div>

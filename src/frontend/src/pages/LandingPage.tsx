@@ -528,18 +528,26 @@ export default function LandingPage() {
                 Create Store
               </Link>
             </nav>
-            <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()}. Built with{" "}
-              <span className="text-destructive">♥</span> using{" "}
-              <a
-                href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
+            <div className="flex items-center gap-4">
+              <p className="text-sm text-muted-foreground">
+                © {new Date().getFullYear()}. Built with{" "}
+                <span className="text-destructive">♥</span> using{" "}
+                <a
+                  href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  caffeine.ai
+                </a>
+              </p>
+              <Link
+                to="/staff"
+                className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
               >
-                caffeine.ai
-              </a>
-            </p>
+                Staff
+              </Link>
+            </div>
           </div>
         </div>
       </footer>
