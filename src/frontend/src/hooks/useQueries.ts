@@ -10,7 +10,9 @@ import type {
   StorePaymentInfo,
   UserProfile,
 } from "../backend.d.ts";
+import { createActorWithConfig } from "../config";
 import { useActor } from "./useActor";
+import { useInternetIdentity } from "./useInternetIdentity";
 
 // ── Store Queries ─────────────────────────────────────────────
 
@@ -142,7 +144,7 @@ export function useMyProfile() {
 // ── Mutations ─────────────────────────────────────────────────
 
 export function useCreateStore() {
-  const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -154,7 +156,9 @@ export function useCreateStore() {
       slug: string;
       description: string;
     }) => {
-      if (!actor) throw new Error("Not authenticated");
+      if (!identity) throw new Error("Not authenticated");
+      // Build a fresh authenticated actor at call time to avoid stale closure issues
+      const actor = await createActorWithConfig({ agentOptions: { identity } });
       return actor.createStore(name, slug, description);
     },
     onSuccess: () => {
@@ -166,6 +170,7 @@ export function useCreateStore() {
 
 export function useUpdateStore() {
   const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -177,7 +182,7 @@ export function useUpdateStore() {
       name: string;
       description: string;
     }) => {
-      if (!actor) throw new Error("Not authenticated");
+      if (!actor || !identity) throw new Error("Not authenticated");
       return actor.updateStore(storeId, name, description);
     },
     onSuccess: () => {
@@ -189,6 +194,7 @@ export function useUpdateStore() {
 
 export function useAddProduct() {
   const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -206,7 +212,7 @@ export function useAddProduct() {
       stock: bigint;
       category: string;
     }) => {
-      if (!actor) throw new Error("Not authenticated");
+      if (!actor || !identity) throw new Error("Not authenticated");
       return actor.addProduct(
         storeId,
         name,
@@ -229,6 +235,7 @@ export function useAddProduct() {
 
 export function useUpdateProduct() {
   const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -247,7 +254,7 @@ export function useUpdateProduct() {
       stock: bigint;
       mediaIds?: Array<Uint8Array> | null;
     }) => {
-      if (!actor) throw new Error("Not authenticated");
+      if (!actor || !identity) throw new Error("Not authenticated");
       return actor.updateProduct(
         productId,
         name,
@@ -270,12 +277,13 @@ export function useUpdateProduct() {
 
 export function useDeleteProduct() {
   const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
       productId,
     }: { productId: bigint; storeId: bigint }) => {
-      if (!actor) throw new Error("Not authenticated");
+      if (!actor || !identity) throw new Error("Not authenticated");
       return actor.deleteProduct(productId);
     },
     onSuccess: (_, vars) => {
@@ -291,6 +299,7 @@ export function useDeleteProduct() {
 
 export function usePlaceOrder() {
   const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -304,7 +313,7 @@ export function usePlaceOrder() {
       buyerEmail: string;
       items: OrderItem[];
     }) => {
-      if (!actor) throw new Error("Not authenticated");
+      if (!actor || !identity) throw new Error("Not authenticated");
       return actor.placeOrder(storeId, buyerName, buyerEmail, items);
     },
     onSuccess: (_, vars) => {
@@ -315,6 +324,7 @@ export function usePlaceOrder() {
 
 export function useUpdateOrderStatus() {
   const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -325,7 +335,7 @@ export function useUpdateOrderStatus() {
       status: OrderStatus;
       storeId: bigint;
     }) => {
-      if (!actor) throw new Error("Not authenticated");
+      if (!actor || !identity) throw new Error("Not authenticated");
       return actor.updateOrderStatus(orderId, status);
     },
     onSuccess: (_, vars) => {
@@ -336,6 +346,7 @@ export function useUpdateOrderStatus() {
 
 export function useAiAssist() {
   const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   return useMutation({
     mutationFn: async ({
       context,
@@ -344,7 +355,7 @@ export function useAiAssist() {
       context: string;
       prompt: string;
     }) => {
-      if (!actor) throw new Error("Not authenticated");
+      if (!actor || !identity) throw new Error("Not authenticated");
       return (
         actor as unknown as Record<
           string,
@@ -371,6 +382,7 @@ export function useMembershipsByStore(storeId: bigint | undefined) {
 
 export function useAddStoreMembership() {
   const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -388,7 +400,7 @@ export function useAddStoreMembership() {
       durationDays: bigint;
       perks: Array<string>;
     }) => {
-      if (!actor) throw new Error("Not authenticated");
+      if (!actor || !identity) throw new Error("Not authenticated");
       return actor.addStoreMembership(
         storeId,
         name,
@@ -408,6 +420,7 @@ export function useAddStoreMembership() {
 
 export function useUpdateStoreMembership() {
   const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -428,7 +441,7 @@ export function useUpdateStoreMembership() {
       perks: Array<string>;
       isActive: boolean;
     }) => {
-      if (!actor) throw new Error("Not authenticated");
+      if (!actor || !identity) throw new Error("Not authenticated");
       return actor.updateStoreMembership(
         membershipId,
         name,
@@ -449,6 +462,7 @@ export function useUpdateStoreMembership() {
 
 export function useDeleteStoreMembership() {
   const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -457,7 +471,7 @@ export function useDeleteStoreMembership() {
       membershipId: bigint;
       storeId: bigint;
     }) => {
-      if (!actor) throw new Error("Not authenticated");
+      if (!actor || !identity) throw new Error("Not authenticated");
       return actor.deleteStoreMembership(membershipId);
     },
     onSuccess: (_, vars) => {
@@ -484,6 +498,7 @@ export function useStorePaymentInfo(storeId: bigint | undefined) {
 
 export function useSaveStorePaymentInfo() {
   const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -493,7 +508,7 @@ export function useSaveStorePaymentInfo() {
       storeId: bigint;
       info: StorePaymentInfo;
     }) => {
-      if (!actor) throw new Error("Not authenticated");
+      if (!actor || !identity) throw new Error("Not authenticated");
       return actor.saveStorePaymentInfo(storeId, info);
     },
     onSuccess: (_, vars) => {

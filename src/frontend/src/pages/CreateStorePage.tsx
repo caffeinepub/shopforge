@@ -23,6 +23,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useCreateStore } from "../hooks/useQueries";
 import { getSubscription, isSubscriptionActive } from "../utils/subscription";
@@ -119,7 +120,8 @@ function generateSlug(name: string) {
 
 export default function CreateStorePage() {
   const navigate = useNavigate();
-  const { identity } = useInternetIdentity();
+  const { identity, isInitializing } = useInternetIdentity();
+  const { isFetching: actorFetching } = useActor();
   const createStore = useCreateStore();
 
   const [step, setStep] = useState(0);
@@ -133,6 +135,7 @@ export default function CreateStorePage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    if (isInitializing) return;
     if (!identity) {
       navigate({ to: "/login" });
       return;
@@ -141,13 +144,21 @@ export default function CreateStorePage() {
     if (!isSubscriptionActive(sub)) {
       navigate({ to: "/membership" });
     }
-  }, [identity, navigate]);
+  }, [identity, isInitializing, navigate]);
 
   useEffect(() => {
     if (!slugManual && name) {
       setSlug(generateSlug(name));
     }
   }, [name, slugManual]);
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   function validateStep3() {
     const e: Record<string, string> = {};
@@ -679,13 +690,13 @@ export default function CreateStorePage() {
               ) : (
                 <Button
                   onClick={handleLaunch}
-                  disabled={createStore.isPending}
+                  disabled={createStore.isPending || actorFetching}
                   className="flex-1 ai-gradient text-white border-0 shadow-glow-sm"
                 >
-                  {createStore.isPending ? (
+                  {createStore.isPending || actorFetching ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Launching...
+                      {actorFetching ? "Preparing..." : "Launching..."}
                     </>
                   ) : (
                     <>
