@@ -145,6 +145,7 @@ export function useMyProfile() {
 
 export function useCreateStore() {
   const { identity } = useInternetIdentity();
+  const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -157,9 +158,18 @@ export function useCreateStore() {
       description: string;
     }) => {
       if (!identity) throw new Error("Not authenticated");
-      // Build a fresh authenticated actor at call time to avoid stale closure issues
-      const actor = await createActorWithConfig({ agentOptions: { identity } });
-      return actor.createStore(name, slug, description);
+      // Prefer the already-initialized actor; only fall back to building a fresh one
+      if (actor) {
+        return actor.createStore(name, slug, description);
+      }
+      // Build a fresh authenticated actor and initialize access control like useActor does
+      const freshActor = await createActorWithConfig({
+        agentOptions: { identity },
+      });
+      const { getSecretParameter } = await import("../utils/urlParams");
+      const adminToken = getSecretParameter("caffeineAdminToken") || "";
+      await freshActor._initializeAccessControlWithSecret(adminToken);
+      return freshActor.createStore(name, slug, description);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["myStore"] });
