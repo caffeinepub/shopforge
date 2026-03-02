@@ -824,6 +824,17 @@ export default function StorefrontPage() {
       </div>
 
       <footer className="border-t border-border mt-16 py-6 text-center text-sm text-muted-foreground">
+        <div className="flex items-center justify-center gap-4 mb-3">
+          <Link to="/staff">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground/60 hover:text-muted-foreground"
+            >
+              Staff
+            </Button>
+          </Link>
+        </div>
         Powered by{" "}
         <span className="font-display font-bold">
           Frost<span className="ai-gradient-text">ify</span>
